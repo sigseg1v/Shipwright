@@ -58,17 +58,29 @@ void Anchor::HandlePacket_RupeesSet(nlohmann::json payload) {
         return;
     }
 
-    // Clamp to s16 range -- gSaveContext.rupees is s16, and a single
-    // wallet caps at 999 anyway. We track the unclamped server value
-    // in lastSyncedRupees so deltas remain accurate even if a peer's
-    // wallet temporarily can't represent the full room balance.
-    s32 clamped = total;
-    if (clamped > 32767) clamped = 32767;
-    if (clamped < 0) clamped = 0;
+    s32 currentLocal = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+    if (currentLocal == total) {
+        // RUPEES_SET that matches what we already have locally -- this
+        // is the echo of a delta we just sent up. Touching the
+        // accumulator here would zero the engine's in-progress count-up
+        // and silence the rupee pickup jingle, so leave gSaveContext
+        // alone and just refresh the baseline.
+        lastSyncedRupees = total;
+        return;
+    }
 
+    // Push the diff into the accumulator instead of overwriting rupees
+    // outright. The engine drains the accumulator one rupee per frame
+    // (or 10/frame for negative drains), playing NA_SE_SY_GET_RUPEE on
+    // each tick -- mirroring the natural pickup feel for amounts that
+    // arrived from a peer. Bumping lastSyncedRupees in lockstep keeps
+    // the per-frame poll from re-broadcasting our own application.
+    s32 diff = total - currentLocal;
     isApplyingRemoteRupees = true;
-    gSaveContext.rupees = (s16)clamped;
-    gSaveContext.rupeeAccumulator = 0;
+    s32 newAccumulator = (s32)gSaveContext.rupeeAccumulator + diff;
+    if (newAccumulator > 32767) newAccumulator = 32767;
+    if (newAccumulator < -32768) newAccumulator = -32768;
+    gSaveContext.rupeeAccumulator = (s16)newAccumulator;
     isApplyingRemoteRupees = false;
 
     lastSyncedRupees = total;
