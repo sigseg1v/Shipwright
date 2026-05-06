@@ -91,6 +91,21 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
             SendPacket_EnemyFullSnapshot(clientId);
         }
 
+        // Proactive save mirror: when a peer just finished loading their
+        // save and we're the room owner with a save loaded, push our
+        // current save state to the team. The joiner also sends
+        // REQUEST_TEAM_STATE on OnLoadGame which round-trips back to us,
+        // but doing this eagerly closes the brief window where they
+        // play on their pre-merge save. UPDATE_TEAM_STATE itself is
+        // gated by syncItemsAndFlags and team membership, so it's a
+        // no-op for cross-team or sync-disabled rooms.
+        bool peerJustLoadedSave =
+            client.isSaveLoaded && !prevSaveLoaded && clientId != ownClientId;
+        if (peerJustLoadedSave && roomState.ownerClientId == ownClientId &&
+            IsSaveLoaded() && roomState.syncItemsAndFlags) {
+            SendPacket_UpdateTeamState();
+        }
+
         // Zone-follow: when the room owner moves to a new scene, pull
         // every other client to the same entrance so co-op stays in
         // sync. Per-client opt-in via CVar (default on). We reuse the
