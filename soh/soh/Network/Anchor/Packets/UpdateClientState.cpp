@@ -106,15 +106,34 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
             SendPacket_UpdateTeamState();
         }
 
-        // Zone-follow: when the room owner moves to a new scene, pull
-        // every other client to the same entrance so co-op stays in
-        // sync. Per-client opt-in via CVar (default on). We reuse the
-        // TELEPORT_TO machinery, but omit respawnFlag so the joiner
-        // lands at the entrance's natural spawn point instead of the
-        // owner's exact world pos (which we don't have here, and which
-        // could put the joiner in a hazard or wrong room).
+        // Zone-follow (boss scenes only): when the room owner enters a
+        // boss room, pull every other client to the same entrance so the
+        // fight happens together. Outside boss scenes players roam
+        // independently -- per-scene authority handles enemy sync, so
+        // splitting up the dungeon into rooms with different authorities
+        // is the intended flow. Per-client opt-in via CVar (default on).
+        // We reuse the TELEPORT_TO machinery, but omit respawnFlag so
+        // the joiner lands at the entrance's natural spawn point.
+        auto isBossScene = [](s16 s) {
+            switch (s) {
+                case SCENE_DEKU_TREE_BOSS:
+                case SCENE_DODONGOS_CAVERN_BOSS:
+                case SCENE_JABU_JABU_BOSS:
+                case SCENE_FOREST_TEMPLE_BOSS:
+                case SCENE_FIRE_TEMPLE_BOSS:
+                case SCENE_WATER_TEMPLE_BOSS:
+                case SCENE_SPIRIT_TEMPLE_BOSS:
+                case SCENE_SHADOW_TEMPLE_BOSS:
+                case SCENE_GANONDORF_BOSS:
+                case SCENE_GANON_BOSS:
+                    return true;
+                default:
+                    return false;
+            }
+        };
         bool ownerChangedScene = clientId == roomState.ownerClientId && clientId != ownClientId &&
                                  client.isSaveLoaded && client.sceneNum != SCENE_ID_MAX &&
+                                 isBossScene(client.sceneNum) &&
                                  (prevSceneNum != client.sceneNum || !prevSaveLoaded);
         bool followEnabled = CVarGetInteger(CVAR_REMOTE_ANCHOR("FollowHostZone"), 1) != 0;
         if (ownerChangedScene && followEnabled && IsSaveLoaded() &&

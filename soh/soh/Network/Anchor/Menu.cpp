@@ -156,12 +156,12 @@ void AnchorMainMenu(WidgetInfo& info) {
     ImGui::EndDisabled();
 
     UIWidgets::CVarCheckbox(
-        "Follow Host Zone", CVAR_REMOTE_ANCHOR("FollowHostZone"),
+        "Follow Host Into Boss Rooms", CVAR_REMOTE_ANCHOR("FollowHostZone"),
         UIWidgets::CheckboxOptions()
             .Color(THEME_COLOR)
             .DefaultValue(true)
-            .Tooltip("When the room owner enters a new scene, you will fade-transition to the same entrance. "
-                     "Disable to roam independently."));
+            .Tooltip("When the room owner enters a boss room, you will fade-transition to the same entrance "
+                     "so you can fight together. Outside of boss rooms players roam independently."));
 
     ImGui::Spacing();
 
