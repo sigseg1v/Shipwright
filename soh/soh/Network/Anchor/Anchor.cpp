@@ -25,6 +25,7 @@ void Anchor::Disable() {
     Network::Disable();
 
     clients.clear();
+    sceneAuthorities.clear();
     RefreshClientActors();
 }
 
@@ -197,6 +198,8 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_EnemyDeath(payload);
             else if (packetType == ENEMY_FULL_SNAPSHOT)
                 HandlePacket_EnemyFullSnapshot(payload);
+            else if (packetType == SCENE_AUTHORITY)
+                HandlePacket_SceneAuthority(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());

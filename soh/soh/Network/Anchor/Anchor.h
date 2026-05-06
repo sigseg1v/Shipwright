@@ -91,6 +91,7 @@ class Anchor : public Network {
     void SetDummyPlayerClientId(const Actor* actor, uint32_t clientId);
 
     void HandlePacket_AllClientState(nlohmann::json payload);
+    void HandlePacket_SceneAuthority(nlohmann::json payload);
     void HandlePacket_EnemySpawn(nlohmann::json payload);
     void HandlePacket_EnemyUpdate(nlohmann::json payload);
     void HandlePacket_EnemyDamage(nlohmann::json payload);
@@ -161,8 +162,20 @@ class Anchor : public Network {
     inline static const std::string ENEMY_DEATH = "ENEMY_DEATH";
     inline static const std::string ENEMY_FULL_SNAPSHOT = "ENEMY_FULL_SNAPSHOT";
 
+    // Server-driven authority assignment. The anchor server tracks which
+    // client owns each scene (first-to-enter, persisted across re-entries
+    // until the owner leaves or disconnects) and announces the result
+    // here. authorityClientId == 0 means "no authority"; older servers
+    // simply never send this packet, in which case GetSceneAuthorityClientId
+    // returns 0 and clients fall back to their own behavior.
+    inline static const std::string SCENE_AUTHORITY = "SCENE_AUTHORITY";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
+    // Server-authoritative per-scene authority. Populated/updated by
+    // HandlePacket_SceneAuthority. Read by IsAuthorityForCurrentScene
+    // and GetSceneAuthorityClientId; never written from gameplay code.
+    std::map<s16, uint32_t> sceneAuthorities;
     RoomState roomState;
 
     void Enable();

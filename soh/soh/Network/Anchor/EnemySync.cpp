@@ -63,23 +63,15 @@ static bool IsSyncableEnemy(const Actor* actor) {
     }
 }
 
-// Pure function over Anchor::clients: lowest clientId of any peer in `sceneNum`
-// that's online and save-loaded. Returns 0 if no eligible client (treat as "no
-// authority needed"; caller should bail).
+// Reads the server-elected authority for `sceneNum` from the
+// sceneAuthorities map populated by SCENE_AUTHORITY packets. Returns 0
+// if the server hasn't (yet) assigned an authority for this scene --
+// callers should treat 0 as "I'm authority by default" so the local
+// client still functions when running against a pre-election anchor
+// server, or before the first SCENE_AUTHORITY arrives.
 uint32_t Anchor::GetSceneAuthorityClientId(s16 sceneNum) {
-    uint32_t winner = 0;
-    for (auto& [clientId, client] : clients) {
-        if (!client.online || !client.isSaveLoaded) {
-            continue;
-        }
-        if (client.sceneNum != sceneNum) {
-            continue;
-        }
-        if (winner == 0 || clientId < winner) {
-            winner = clientId;
-        }
-    }
-    return winner;
+    auto it = sceneAuthorities.find(sceneNum);
+    return it != sceneAuthorities.end() ? it->second : 0;
 }
 
 bool Anchor::IsAuthorityForCurrentScene() {
@@ -87,7 +79,7 @@ bool Anchor::IsAuthorityForCurrentScene() {
         return false;
     }
     uint32_t authority = GetSceneAuthorityClientId(gPlayState->sceneNum);
-    // If we're the only client in our own clients map, we're authority.
+    // 0 = server hasn't elected anyone (or older server): act as authority.
     return authority == 0 || authority == ownClientId;
 }
 
