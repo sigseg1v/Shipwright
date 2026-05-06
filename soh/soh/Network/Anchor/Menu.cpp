@@ -155,6 +155,14 @@ void AnchorMainMenu(WidgetInfo& info) {
                          : "Cannot show other players because the room's Show Locations mode is set to None."));
     ImGui::EndDisabled();
 
+    UIWidgets::CVarCheckbox(
+        "Follow Host Zone", CVAR_REMOTE_ANCHOR("FollowHostZone"),
+        UIWidgets::CheckboxOptions()
+            .Color(THEME_COLOR)
+            .DefaultValue(true)
+            .Tooltip("When the room owner enters a new scene, you will fade-transition to the same entrance. "
+                     "Disable to roam independently."));
+
     ImGui::Spacing();
 
     if (!SohGui::mAnchorRoomWindow->IsVisible()) {

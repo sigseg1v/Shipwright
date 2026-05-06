@@ -2,9 +2,11 @@
 #include "soh/Network/Anchor/JsonConversions.hpp"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
+#include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/OTRGlobals.h"
 
 extern "C" {
+#include "macros.h"
 #include "variables.h"
 extern PlayState* gPlayState;
 }
@@ -87,6 +89,34 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
             (prevSceneNum != client.sceneNum || !prevSaveLoaded) && clientId != ownClientId;
         if (peerEnteredOurScene && IsAuthorityForCurrentScene()) {
             SendPacket_EnemyFullSnapshot(clientId);
+        }
+
+        // Zone-follow: when the room owner moves to a new scene, pull
+        // every other client to the same entrance so co-op stays in
+        // sync. Per-client opt-in via CVar (default on). We reuse the
+        // TELEPORT_TO machinery, but omit respawnFlag so the joiner
+        // lands at the entrance's natural spawn point instead of the
+        // owner's exact world pos (which we don't have here, and which
+        // could put the joiner in a hazard or wrong room).
+        bool ownerChangedScene = clientId == roomState.ownerClientId && clientId != ownClientId &&
+                                 client.isSaveLoaded && client.sceneNum != SCENE_ID_MAX &&
+                                 (prevSceneNum != client.sceneNum || !prevSaveLoaded);
+        bool followEnabled = CVarGetInteger(CVAR_REMOTE_ANCHOR("FollowHostZone"), 1) != 0;
+        if (ownerChangedScene && followEnabled && IsSaveLoaded() &&
+            gPlayState->sceneNum != client.sceneNum) {
+            s32 entranceIndex = client.entranceIndex;
+            gPlayState->nextEntranceIndex = entranceIndex;
+            gPlayState->transitionTrigger = TRANS_TRIGGER_START;
+            gPlayState->transitionType = TRANS_TYPE_FADE_BLACK_FAST;
+            gSaveContext.nextTransitionType = TRANS_TYPE_FADE_BLACK_FAST;
+            // Suppress any void damage that might fire mid-transition
+            // (e.g., owner entering a dungeon while we're falling).
+            static HOOK_ID followVoidHookId = 0;
+            followVoidHookId = REGISTER_VB_SHOULD(VB_INFLICT_VOID_DAMAGE, {
+                *should = false;
+                GameInteractor::Instance->UnregisterGameHookForID<GameInteractor::OnVanillaBehavior>(
+                    followVoidHookId);
+            });
         }
     }
 }
