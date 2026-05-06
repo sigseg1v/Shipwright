@@ -10,8 +10,25 @@ extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-#include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
 extern PlayState* gPlayState;
+}
+
+// Mirror of EnemySync.cpp::IsSyncableEnemy. Kept here as a static so the
+// snapshot writer doesn't take a dependency on the EnemySync TU's internals.
+// Update both lists when a new actor type joins the synced set.
+static bool IsSnapshottableEnemy(s16 actorId) {
+    switch (actorId) {
+        case ACTOR_EN_SKB:
+        case ACTOR_EN_DEKUBABA:
+        case ACTOR_EN_KAREBABA:
+        case ACTOR_EN_DEKUNUTS:
+        case ACTOR_EN_GOMA:
+        case ACTOR_EN_ST:
+        case ACTOR_EN_SW:
+            return true;
+        default:
+            return false;
+    }
 }
 
 /**
@@ -36,7 +53,7 @@ void Anchor::SendPacket_EnemyFullSnapshot(uint32_t targetClientId) {
 
     Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
     while (actor != NULL) {
-        if (actor->id == ACTOR_EN_SKB) {
+        if (IsSnapshottableEnemy(actor->id)) {
             EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
             if (state != nullptr && state->isSynced && state->isAuthority && state->enemyNetId != 0) {
                 nlohmann::json e;

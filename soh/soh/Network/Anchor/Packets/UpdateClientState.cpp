@@ -61,6 +61,8 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
 
     if (clients.contains(clientId)) {
         AnchorClient client = payload["state"].get<AnchorClient>();
+        s16 prevSceneNum = clients[clientId].sceneNum;
+        bool prevSaveLoaded = clients[clientId].isSaveLoaded;
         clients[clientId].clientId = clientId;
         clients[clientId].name = client.name;
         clients[clientId].color = client.color;
@@ -74,5 +76,17 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
         clients[clientId].sceneNum = client.sceneNum;
         clients[clientId].curRoomNum = client.curRoomNum;
         clients[clientId].entranceIndex = client.entranceIndex;
+
+        // Inverse late-join trigger: a peer just arrived in our scene (or
+        // just finished loading their save while in our scene). If we're the
+        // current authority for this scene, send them a full snapshot of the
+        // live synced enemies so they don't sit empty waiting for our next
+        // scene-spawn (which won't fire until WE re-enter).
+        bool peerEnteredOurScene =
+            client.isSaveLoaded && IsSaveLoaded() && client.sceneNum == gPlayState->sceneNum &&
+            (prevSceneNum != client.sceneNum || !prevSaveLoaded) && clientId != ownClientId;
+        if (peerEnteredOurScene && IsAuthorityForCurrentScene()) {
+            SendPacket_EnemyFullSnapshot(clientId);
+        }
     }
 }

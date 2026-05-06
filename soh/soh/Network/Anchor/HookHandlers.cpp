@@ -131,37 +131,40 @@ void Anchor::RegisterHooks() {
     // void in COND_ID_HOOK; we set *should = false to skip update. Animation
     // and collider visuals continue advancing because we still write
     // pos/rot/state from ENEMY_UPDATE. Skel-anime advance for non-authority
-    // is a known v1 gap (Stalchild's anim runs inside its update fn) -- the
-    // synced actionState mostly papers over it but small visual hitches will
-    // be visible and are flagged for Phase 3 polish.
-    COND_ID_HOOK(ShouldActorUpdate, ACTOR_EN_SKB, isConnected, [&](void* refActor, bool* should) {
-        Actor* actor = (Actor*)refActor;
-        EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-        if (state == nullptr || !state->isSynced) {
-            return;
-        }
-        if (!state->isAuthority) {
-            // Hit detection still runs on non-authority each frame because
-            // collider AC/AT processing is in Actor_UpdateAll *outside* the
-            // gated update call. So we forward the hit before suppressing.
-            EnemySync_HandleNonAuthorityHit(actor);
-            *should = false;
-        }
-    });
+    // is a known v1 gap (each actor's anim runs inside its update fn) --
+    // the synced actionState mostly papers over it but small visual hitches
+    // will be visible and are flagged for Phase 3 polish.
+    //
+    // Macro keeps the per-actor-id triplet (ShouldActorUpdate /
+    // OnEnemyDefeat / OnActorDestroy) in sync. Adding a new synced actor
+    // type means: (1) extend IsSyncableEnemy in EnemySync.cpp, (2) add a
+    // collider AC_HIT clear in EnemySync_HandleNonAuthorityHit, and (3)
+    // append one ANCHOR_REGISTER_ENEMY_SYNC_HOOKS line below.
+#define ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_ID)                                                  \
+    COND_ID_HOOK(ShouldActorUpdate, ACTOR_ID, isConnected, [&](void* refActor, bool* should) {     \
+        Actor* actor = (Actor*)refActor;                                                            \
+        EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);            \
+        if (state == nullptr || !state->isSynced) {                                                 \
+            return;                                                                                 \
+        }                                                                                           \
+        if (!state->isAuthority) {                                                                  \
+            EnemySync_HandleNonAuthorityHit(actor);                                                 \
+            *should = false;                                                                        \
+        }                                                                                           \
+    });                                                                                             \
+    COND_ID_HOOK(OnEnemyDefeat, ACTOR_ID, isConnected,                                              \
+                 [&](void* refActor) { EnemySync_OnEnemyDefeat((Actor*)refActor); });               \
+    COND_ID_HOOK(OnActorDestroy, ACTOR_ID, isConnected,                                             \
+                 [&](void* refActor) { EnemySync_OnActorDestroy((Actor*)refActor); });
 
-    COND_ID_HOOK(OnEnemyDefeat, ACTOR_EN_SKB, isConnected, [&](void* refActor) {
-        Actor* actor = (Actor*)refActor;
-        EnemySync_OnEnemyDefeat(actor);
-    });
-
-    // Clean up our network-id -> Actor* table when the engine destroys the
-    // actor (room unload, Actor_Kill, etc). Without this we'd leave dangling
-    // pointers in enemyNetIdToActor and risk a write-after-free on the next
-    // ENEMY_UPDATE.
-    COND_ID_HOOK(OnActorDestroy, ACTOR_EN_SKB, isConnected, [&](void* refActor) {
-        Actor* actor = (Actor*)refActor;
-        EnemySync_OnActorDestroy(actor);
-    });
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_SKB);       // Stalchild
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_DEKUBABA);  // Deku Baba
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_KAREBABA);  // Big/Withered Deku Baba
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_DEKUNUTS);  // Mad Scrub
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_GOMA);      // Gohma Larva
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_ST);        // Skulltula
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_SW);        // Skullwalltula
+#undef ANCHOR_REGISTER_ENEMY_SYNC_HOOKS
 
     COND_HOOK(OnPlayerSfx, isConnected, [&](u16 sfxId) { SendPacket_PlayerSfx(sfxId); });
     COND_HOOK(OnOcarinaNote, isConnected,

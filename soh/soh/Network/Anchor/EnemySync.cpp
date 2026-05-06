@@ -11,6 +11,18 @@ extern "C" {
 #include "variables.h"
 #include "functions.h"
 #include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
+#include "src/overlays/actors/ovl_En_Dekubaba/z_en_dekubaba.h"
+#include "src/overlays/actors/ovl_En_Karebaba/z_en_karebaba.h"
+#include "src/overlays/actors/ovl_En_Dekunuts/z_en_dekunuts.h"
+#include "src/overlays/actors/ovl_En_Goma/z_en_goma.h"
+// z_en_st.h declares an action-func typedef using `this` as the parameter
+// name, which is a reserved word in C++. Locally rename it during include
+// only -- the redefinition is identifier-name only, so the struct layout
+// and any `this` callers in .c files are unaffected.
+#define this thisx
+#include "src/overlays/actors/ovl_En_St/z_en_st.h"
+#undef this
+#include "src/overlays/actors/ovl_En_Sw/z_en_sw.h"
 extern PlayState* gPlayState;
 }
 
@@ -27,13 +39,28 @@ static EnemyNetState* GetOrCreateNetState(Actor* actor) {
     return state;
 }
 
-// Stalchild is the only actor type wired in Phase 2. Future actor families
-// extend this list (and add per-family update-payload extensions).
+// Actor types covered by host-authoritative sync. Adding an entry here is
+// the minimum to start syncing pos/rot/hp/vel; per-family AI fields (like
+// Stalchild's actionState) need their own branch in the spawn/update
+// handlers as well. Visible animation may stutter on non-authority for
+// actors whose anim is driven inside their update fn -- that's the known
+// v1 gap noted in planning/oot-coop-enemy-sync-plan.md (Phase 3 polish).
 static bool IsSyncableEnemy(const Actor* actor) {
     if (actor == nullptr) {
         return false;
     }
-    return actor->id == ACTOR_EN_SKB;
+    switch (actor->id) {
+        case ACTOR_EN_SKB:       // Stalchild
+        case ACTOR_EN_DEKUBABA:  // Deku Baba (deku stick plant)
+        case ACTOR_EN_KAREBABA:  // Big/Withered Deku Baba
+        case ACTOR_EN_DEKUNUTS:  // Mad Scrub
+        case ACTOR_EN_GOMA:      // Gohma Larva
+        case ACTOR_EN_ST:        // Skulltula (web-hanging)
+        case ACTOR_EN_SW:        // Skullwalltula (wall-crawler)
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Pure function over Anchor::clients: lowest clientId of any peer in `sceneNum`
@@ -216,9 +243,49 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
     // re-forward every frame until the engine clears it some other way.
     actor->colChkInfo.damage = 0;
     actor->colChkInfo.damageEffect = 0;
-    if (actor->id == ACTOR_EN_SKB) {
-        EnSkb* skb = reinterpret_cast<EnSkb*>(actor);
-        skb->collider.base.acFlags &= ~AC_HIT;
+    switch (actor->id) {
+        case ACTOR_EN_SKB: {
+            EnSkb* a = reinterpret_cast<EnSkb*>(actor);
+            a->collider.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        case ACTOR_EN_DEKUBABA: {
+            EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
+            a->collider.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        case ACTOR_EN_KAREBABA: {
+            EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
+            a->headCollider.base.acFlags &= ~AC_HIT;
+            a->bodyCollider.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        case ACTOR_EN_DEKUNUTS: {
+            EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
+            a->collider.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        case ACTOR_EN_GOMA: {
+            EnGoma* a = reinterpret_cast<EnGoma*>(actor);
+            a->colCyl1.base.acFlags &= ~AC_HIT;
+            a->colCyl2.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        case ACTOR_EN_ST: {
+            EnSt* a = reinterpret_cast<EnSt*>(actor);
+            a->colSph.base.acFlags &= ~AC_HIT;
+            for (int i = 0; i < 6; i++) {
+                a->colCylinder[i].base.acFlags &= ~AC_HIT;
+            }
+            break;
+        }
+        case ACTOR_EN_SW: {
+            EnSw* a = reinterpret_cast<EnSw*>(actor);
+            a->collider.base.acFlags &= ~AC_HIT;
+            break;
+        }
+        default:
+            break;
     }
 }
 
