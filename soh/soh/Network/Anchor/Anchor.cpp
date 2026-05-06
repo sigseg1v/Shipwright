@@ -1,4 +1,5 @@
 #include "Anchor.h"
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
@@ -93,13 +94,30 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
 
     std::string packetType = payload["type"].get<std::string>();
 
+    // Enemy-sync packet types are version-mismatch tolerant as long as both peers
+    // advertise FEATURE_ENEMY_SYNC. This lets enemy-sync forks coexist on the
+    // public Anchor server with vanilla SoH builds (vanilla peers simply never
+    // emit or handle these types).
+    bool isEnemySyncPacket = packetType == ENEMY_SPAWN || packetType == ENEMY_UPDATE ||
+                             packetType == ENEMY_DAMAGE || packetType == ENEMY_DEATH ||
+                             packetType == ENEMY_FULL_SNAPSHOT;
+
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
-    if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE) {
+    if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
+        !isEnemySyncPacket) {
         if (payload.contains("clientId")) {
             uint32_t clientId = payload["clientId"].get<uint32_t>();
             if (clients.contains(clientId) && clients[clientId].clientVersion != clientVersion) {
                 return;
             }
+        }
+    }
+
+    // For enemy-sync packets, require the sender to advertise FEATURE_ENEMY_SYNC.
+    if (isEnemySyncPacket && payload.contains("clientId")) {
+        uint32_t clientId = payload["clientId"].get<uint32_t>();
+        if (!ClientHasFeature(clientId, FEATURE_ENEMY_SYNC)) {
+            return;
         }
     }
 
@@ -169,6 +187,16 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_UpdateRoomState(payload);
             else if (packetType == UPDATE_DUNGEON_ITEMS)
                 HandlePacket_UpdateDungeonItems(payload);
+            else if (packetType == ENEMY_SPAWN)
+                HandlePacket_EnemySpawn(payload);
+            else if (packetType == ENEMY_UPDATE)
+                HandlePacket_EnemyUpdate(payload);
+            else if (packetType == ENEMY_DAMAGE)
+                HandlePacket_EnemyDamage(payload);
+            else if (packetType == ENEMY_DEATH)
+                HandlePacket_EnemyDeath(payload);
+            else if (packetType == ENEMY_FULL_SNAPSHOT)
+                HandlePacket_EnemyFullSnapshot(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());
@@ -226,6 +254,15 @@ void Anchor::RefreshClientActors() {
         client.player = (Player*)dummy;
     }
     spawningDummyPlayerForClientId = 0;
+}
+
+bool Anchor::ClientHasFeature(uint32_t clientId, const std::string& feature) {
+    auto it = clients.find(clientId);
+    if (it == clients.end()) {
+        return false;
+    }
+    const auto& features = it->second.features;
+    return std::find(features.begin(), features.end(), feature) != features.end();
 }
 
 bool Anchor::IsSaveLoaded() {

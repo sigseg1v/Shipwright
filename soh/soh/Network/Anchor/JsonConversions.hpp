@@ -56,6 +56,7 @@ inline void from_json(const json& j, AnchorClient& client) {
     client.name = j.value("name", "???");
     client.color = j.value("color", Color_RGB8{ 255, 255, 255 });
     client.clientVersion = j.value("clientVersion", "???");
+    client.features = j.value("features", std::vector<std::string>{});
     client.teamId = j.value("teamId", "default");
     client.online = j.value("online", false);
     client.seed = j.value("seed", (u32)0);

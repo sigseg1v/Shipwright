@@ -4,8 +4,11 @@
 
 #include "soh/Network/Network.h"
 #include <libultraship/libultraship.h>
-#include <queue>
+#include <map>
 #include <mutex>
+#include <queue>
+#include <string>
+#include <vector>
 
 extern "C" {
 #include "variables.h"
@@ -31,6 +34,7 @@ typedef struct {
     s16 sceneNum;
     s8 curRoomNum;
     s32 entranceIndex;
+    std::vector<std::string> features;
 
     // Only available in PLAYER_UPDATE packets
     s32 linkAge;
@@ -87,6 +91,11 @@ class Anchor : public Network {
     void SetDummyPlayerClientId(const Actor* actor, uint32_t clientId);
 
     void HandlePacket_AllClientState(nlohmann::json payload);
+    void HandlePacket_EnemySpawn(nlohmann::json payload);
+    void HandlePacket_EnemyUpdate(nlohmann::json payload);
+    void HandlePacket_EnemyDamage(nlohmann::json payload);
+    void HandlePacket_EnemyDeath(nlohmann::json payload);
+    void HandlePacket_EnemyFullSnapshot(nlohmann::json payload);
     void HandlePacket_ConsumeAdultTradeItem(nlohmann::json payload);
     void HandlePacket_DamagePlayer(nlohmann::json payload);
     void HandlePacket_DisableAnchor(nlohmann::json payload);
@@ -113,6 +122,14 @@ class Anchor : public Network {
     uint32_t ownClientId;
     inline static const std::string clientVersion = (char*)gGitCommitHash;
 
+    // Feature flags this build advertises in HANDSHAKE / UPDATE_CLIENT_STATE.
+    // Peers gracefully ignore feature-gated packets from clients that don't
+    // advertise the matching feature, allowing forward-compatible additions
+    // (e.g., enemy_sync) to coexist with vanilla SoH on the public Anchor server.
+    inline static const std::string FEATURE_ENEMY_SYNC = "enemy_sync_v1";
+    inline static const std::vector<std::string> selfFeatures = { FEATURE_ENEMY_SYNC };
+    bool ClientHasFeature(uint32_t clientId, const std::string& feature);
+
     // Packet types //
     inline static const std::string ALL_CLIENT_STATE = "ALL_CLIENT_STATE";
     inline static const std::string DAMAGE_PLAYER = "DAMAGE_PLAYER";
@@ -136,6 +153,13 @@ class Anchor : public Network {
     inline static const std::string UPDATE_DUNGEON_ITEMS = "UPDATE_DUNGEON_ITEMS";
     inline static const std::string UPDATE_ROOM_STATE = "UPDATE_ROOM_STATE";
     inline static const std::string UPDATE_TEAM_STATE = "UPDATE_TEAM_STATE";
+
+    // Enemy-sync packet types (FEATURE_ENEMY_SYNC). Version-mismatch tolerant.
+    inline static const std::string ENEMY_SPAWN = "ENEMY_SPAWN";
+    inline static const std::string ENEMY_UPDATE = "ENEMY_UPDATE";
+    inline static const std::string ENEMY_DAMAGE = "ENEMY_DAMAGE";
+    inline static const std::string ENEMY_DEATH = "ENEMY_DEATH";
+    inline static const std::string ENEMY_FULL_SNAPSHOT = "ENEMY_FULL_SNAPSHOT";
 
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
@@ -174,6 +198,26 @@ class Anchor : public Network {
     void SendPacket_UpdateDungeonItems();
     void SendPacket_UpdateRoomState();
     void SendPacket_UpdateTeamState();
+
+    // Enemy sync helpers (Phase 2 PoC)
+    bool IsAuthorityForCurrentScene();
+    uint32_t GetSceneAuthorityClientId(s16 sceneNum);
+    uint32_t MintEnemyNetId();
+    void EnemySync_OnSceneSpawnActors();
+    void EnemySync_TickAuthorityBroadcast();
+    void EnemySync_HandleNonAuthorityHit(Actor* actor);
+    void EnemySync_OnEnemyDefeat(Actor* actor);
+    void EnemySync_OnActorDestroy(Actor* actor);
+    void SendPacket_EnemySpawn(Actor* actor, uint32_t enemyNetId);
+    void SendPacket_EnemyDamage(uint32_t enemyNetId, uint32_t targetClientId, u8 damage, u8 damageEffect);
+    void SendPacket_EnemyDeath(uint32_t enemyNetId);
+    void SendPacket_EnemyFullSnapshot(uint32_t targetClientId);
+
+  private:
+    uint32_t enemyNetIdCounter = 0;
+    uint32_t enemySyncTickCounter = 0;
+    // network-id -> Actor* (only valid while actor is alive in current scene)
+    std::map<uint32_t, Actor*> enemyNetIdToActor;
 };
 
 typedef enum {

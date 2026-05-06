@@ -1,9 +1,11 @@
 #include "Anchor.h"
+#include "EnemySync.h"
 #include <libultraship/libultraship.h>
 #include "soh/Enhancements/cosmetics/cosmeticsTypes.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/frame_interpolation.h"
 #include "soh/OTRGlobals.h"
+#include "soh/ObjectExtension/ObjectExtension.h"
 
 extern "C" {
 #include "variables.h"
@@ -66,6 +68,24 @@ void Anchor::RegisterHooks() {
 
         if (IsSaveLoaded()) {
             RefreshClientActors();
+            EnemySync_OnSceneSpawnActors();
+
+            // Late-join: if we're authority for this scene and any peer is
+            // already in our scene, send them a full enemy snapshot so they
+            // can spawn the live enemies. (For peers entering the scene, the
+            // SendPacket_UpdateClientState above announces our sceneNum --
+            // but we don't have an inverse trigger when *they* arrive. Phase
+            // 2 leaves that as a known gap; non-authority newcomers will pick
+            // up the next ENEMY_UPDATE tick and miss any enemies they didn't
+            // see spawn.)
+            if (IsAuthorityForCurrentScene()) {
+                for (auto& [clientId, client] : clients) {
+                    if (!client.self && client.online && client.isSaveLoaded &&
+                        client.sceneNum == gPlayState->sceneNum) {
+                        SendPacket_EnemyFullSnapshot(clientId);
+                    }
+                }
+            }
         }
     });
 
@@ -102,7 +122,46 @@ void Anchor::RegisterHooks() {
         SendPacket_PlayerUpdate();
     });
 
-    COND_HOOK(OnGameFrameUpdate, isConnected, [&]() { ProcessIncomingPacketQueue(); });
+    COND_HOOK(OnGameFrameUpdate, isConnected, [&]() {
+        ProcessIncomingPacketQueue();
+        EnemySync_TickAuthorityBroadcast();
+    });
+
+    // Suppress AI tick on non-authority for synced enemies. The hook returns
+    // void in COND_ID_HOOK; we set *should = false to skip update. Animation
+    // and collider visuals continue advancing because we still write
+    // pos/rot/state from ENEMY_UPDATE. Skel-anime advance for non-authority
+    // is a known v1 gap (Stalchild's anim runs inside its update fn) -- the
+    // synced actionState mostly papers over it but small visual hitches will
+    // be visible and are flagged for Phase 3 polish.
+    COND_ID_HOOK(ShouldActorUpdate, ACTOR_EN_SKB, isConnected, [&](void* refActor, bool* should) {
+        Actor* actor = (Actor*)refActor;
+        EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
+        if (state == nullptr || !state->isSynced) {
+            return;
+        }
+        if (!state->isAuthority) {
+            // Hit detection still runs on non-authority each frame because
+            // collider AC/AT processing is in Actor_UpdateAll *outside* the
+            // gated update call. So we forward the hit before suppressing.
+            EnemySync_HandleNonAuthorityHit(actor);
+            *should = false;
+        }
+    });
+
+    COND_ID_HOOK(OnEnemyDefeat, ACTOR_EN_SKB, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        EnemySync_OnEnemyDefeat(actor);
+    });
+
+    // Clean up our network-id -> Actor* table when the engine destroys the
+    // actor (room unload, Actor_Kill, etc). Without this we'd leave dangling
+    // pointers in enemyNetIdToActor and risk a write-after-free on the next
+    // ENEMY_UPDATE.
+    COND_ID_HOOK(OnActorDestroy, ACTOR_EN_SKB, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        EnemySync_OnActorDestroy(actor);
+    });
 
     COND_HOOK(OnPlayerSfx, isConnected, [&](u16 sfxId) { SendPacket_PlayerSfx(sfxId); });
     COND_HOOK(OnOcarinaNote, isConnected,

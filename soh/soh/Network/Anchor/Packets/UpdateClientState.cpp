@@ -25,6 +25,7 @@ nlohmann::json Anchor::PrepClientState() {
     payload["name"] = CVarGetString(CVAR_REMOTE_ANCHOR("Name"), "");
     payload["color"] = CVarGetColor24(CVAR_REMOTE_ANCHOR("Color.Value"), { 100, 255, 100 });
     payload["clientVersion"] = clientVersion;
+    payload["features"] = selfFeatures;
     payload["teamId"] = CVarGetString(CVAR_REMOTE_ANCHOR("TeamId"), "default");
     payload["online"] = true;
 
@@ -64,6 +65,7 @@ void Anchor::HandlePacket_UpdateClientState(nlohmann::json payload) {
         clients[clientId].name = client.name;
         clients[clientId].color = client.color;
         clients[clientId].clientVersion = client.clientVersion;
+        clients[clientId].features = client.features;
         clients[clientId].teamId = client.teamId;
         clients[clientId].online = client.online;
         clients[clientId].seed = client.seed;

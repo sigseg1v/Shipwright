@@ -45,6 +45,7 @@ void Anchor::HandlePacket_AllClientState(nlohmann::json payload) {
         clients[client.clientId].name = client.name;
         clients[client.clientId].color = client.color;
         clients[client.clientId].clientVersion = client.clientVersion;
+        clients[client.clientId].features = client.features;
         clients[client.clientId].teamId = client.teamId;
         clients[client.clientId].online = client.online;
         clients[client.clientId].seed = client.seed;
