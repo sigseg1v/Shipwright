@@ -1,5 +1,6 @@
 #include "Anchor.h"
 #include "EnemySync.h"
+#include "JsonConversions.hpp"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
