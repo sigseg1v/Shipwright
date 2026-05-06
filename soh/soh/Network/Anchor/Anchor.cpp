@@ -26,6 +26,10 @@ void Anchor::Disable() {
 
     clients.clear();
     sceneAuthorities.clear();
+    destroyedFoliage.clear();
+    lastSyncedRupees = 0;
+    receivedFirstRupeesSet = false;
+    isApplyingRemoteRupees = false;
     RefreshClientActors();
 }
 
@@ -102,10 +106,12 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     bool isEnemySyncPacket = packetType == ENEMY_SPAWN || packetType == ENEMY_UPDATE ||
                              packetType == ENEMY_DAMAGE || packetType == ENEMY_DEATH ||
                              packetType == ENEMY_FULL_SNAPSHOT;
+    bool isRupeesPacket = packetType == UPDATE_RUPEES || packetType == RUPEES_SET;
+    bool isFoliagePacket = packetType == FOLIAGE_DESTROY || packetType == FOLIAGE_SNAPSHOT;
 
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
     if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
-        !isEnemySyncPacket) {
+        !isEnemySyncPacket && !isRupeesPacket && !isFoliagePacket) {
         if (payload.contains("clientId")) {
             uint32_t clientId = payload["clientId"].get<uint32_t>();
             if (clients.contains(clientId) && clients[clientId].clientVersion != clientVersion) {
@@ -118,6 +124,23 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     if (isEnemySyncPacket && payload.contains("clientId")) {
         uint32_t clientId = payload["clientId"].get<uint32_t>();
         if (!ClientHasFeature(clientId, FEATURE_ENEMY_SYNC)) {
+            return;
+        }
+    }
+
+    // RUPEES_SET / FOLIAGE_SNAPSHOT come from the server with no clientId, so
+    // they pass through. FOLIAGE_DESTROY / UPDATE_RUPEES carry the sender's
+    // clientId; require the matching feature flag so vanilla peers don't
+    // try to interpret them.
+    if (isRupeesPacket && payload.contains("clientId")) {
+        uint32_t clientId = payload["clientId"].get<uint32_t>();
+        if (!ClientHasFeature(clientId, FEATURE_SHARED_RUPEES)) {
+            return;
+        }
+    }
+    if (isFoliagePacket && payload.contains("clientId")) {
+        uint32_t clientId = payload["clientId"].get<uint32_t>();
+        if (!ClientHasFeature(clientId, FEATURE_FOLIAGE_SYNC)) {
             return;
         }
     }
@@ -200,6 +223,12 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_EnemyFullSnapshot(payload);
             else if (packetType == SCENE_AUTHORITY)
                 HandlePacket_SceneAuthority(payload);
+            else if (packetType == RUPEES_SET)
+                HandlePacket_RupeesSet(payload);
+            else if (packetType == FOLIAGE_DESTROY)
+                HandlePacket_FoliageDestroy(payload);
+            else if (packetType == FOLIAGE_SNAPSHOT)
+                HandlePacket_FoliageSnapshot(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());

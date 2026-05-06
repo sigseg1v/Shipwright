@@ -125,6 +125,56 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnGameFrameUpdate, isConnected, [&]() {
         ProcessIncomingPacketQueue();
         EnemySync_TickAuthorityBroadcast();
+
+        // Shared-rupees poll. We avoid hooking Rupees_ChangeBy directly
+        // and instead diff (rupees + accumulator) once per frame so we
+        // pick up any path that mutates the wallet (item give, shop
+        // pay, drowning penalty, etc.). isApplyingRemoteRupees gates
+        // out the writes WE made when handling RUPEES_SET.
+        if (IsSaveLoaded() && !isApplyingRemoteRupees) {
+            s32 currTotal = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+            if (!receivedFirstRupeesSet) {
+                // Server hasn't told us its total yet; just track local
+                // so we don't fire a huge bogus delta the moment we
+                // connect.
+                lastSyncedRupees = currTotal;
+            } else if (currTotal != lastSyncedRupees) {
+                s32 delta = currTotal - lastSyncedRupees;
+                s32 seed = lastSyncedRupees;
+                lastSyncedRupees = currTotal;
+                SendPacket_UpdateRupees(delta, seed);
+            }
+        }
+    });
+
+    // Foliage sync: kill grass on init if it was already cut, and
+    // broadcast a destroy when we kill it locally. We treat local
+    // EnKusa Actor_Kill as the destroy event because every cut path
+    // (sword, bomb, regrow timeout) routes through it.
+    COND_ID_HOOK(OnActorInit, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr) return;
+        auto it = destroyedFoliage.find(gPlayState->sceneNum);
+        if (it == destroyedFoliage.end()) return;
+        std::string id = MakeFoliageId(actor);
+        if (it->second.count(id)) {
+            Actor_Kill(actor);
+        }
+    });
+
+    COND_ID_HOOK(OnActorKill, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        s16 sceneNum = gPlayState->sceneNum;
+        std::string id = MakeFoliageId(actor);
+        // Already in our set? Either we just killed it from a
+        // FOLIAGE_DESTROY/SNAPSHOT, or someone else's destroy raced
+        // ours. Either way the server will dedupe; skip the send to
+        // avoid a flood on scene-load mass-kill paths.
+        auto& set = destroyedFoliage[sceneNum];
+        if (set.count(id)) return;
+        set.insert(id);
+        SendPacket_FoliageDestroy(sceneNum, id);
     });
 
     // Suppress AI tick on non-authority for synced enemies. The hook returns
@@ -170,7 +220,13 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnOcarinaNote, isConnected,
               [&](uint8_t note, float modulator, int8_t bend) { SendPacket_OcarinaSfx(note, modulator, bend); });
 
-    COND_HOOK(OnLoadGame, isConnected, [&](s16 fileNum) { justLoadedSave = true; });
+    COND_HOOK(OnLoadGame, isConnected, [&](s16 fileNum) {
+        justLoadedSave = true;
+        // Reset the rupees-poll baseline so the first post-load delta
+        // compares against the just-loaded wallet, not whatever the
+        // value was on the file-select / soft-reset path.
+        lastSyncedRupees = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+    });
 
     COND_HOOK(OnSaveFile, isConnected, [&](s16 fileNum, int sectionID) {
         if (sectionID == 0) {

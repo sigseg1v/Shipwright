@@ -7,6 +7,7 @@
 #include <map>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -118,6 +119,9 @@ class Anchor : public Network {
     void HandlePacket_UpdateDungeonItems(nlohmann::json payload);
     void HandlePacket_UpdateRoomState(nlohmann::json payload);
     void HandlePacket_UpdateTeamState(nlohmann::json payload);
+    void HandlePacket_RupeesSet(nlohmann::json payload);
+    void HandlePacket_FoliageDestroy(nlohmann::json payload);
+    void HandlePacket_FoliageSnapshot(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -128,7 +132,11 @@ class Anchor : public Network {
     // advertise the matching feature, allowing forward-compatible additions
     // (e.g., enemy_sync) to coexist with vanilla SoH on the public Anchor server.
     inline static const std::string FEATURE_ENEMY_SYNC = "enemy_sync_v1";
-    inline static const std::vector<std::string> selfFeatures = { FEATURE_ENEMY_SYNC };
+    inline static const std::string FEATURE_SHARED_RUPEES = "shared_rupees_v1";
+    inline static const std::string FEATURE_FOLIAGE_SYNC = "foliage_sync_v1";
+    inline static const std::vector<std::string> selfFeatures = {
+        FEATURE_ENEMY_SYNC, FEATURE_SHARED_RUPEES, FEATURE_FOLIAGE_SYNC,
+    };
     bool ClientHasFeature(uint32_t clientId, const std::string& feature);
 
     // Packet types //
@@ -170,12 +178,50 @@ class Anchor : public Network {
     // returns 0 and clients fall back to their own behavior.
     inline static const std::string SCENE_AUTHORITY = "SCENE_AUTHORITY";
 
+    // Shared-rupees packet types (FEATURE_SHARED_RUPEES). The client
+    // sends UPDATE_RUPEES with a signed delta whenever its local
+    // wallet changes; the server applies the delta to a single
+    // per-room counter and broadcasts RUPEES_SET back with the new
+    // total. Older anchor servers never emit RUPEES_SET, in which
+    // case the local wallet just behaves the way it always has.
+    inline static const std::string UPDATE_RUPEES = "UPDATE_RUPEES";
+    inline static const std::string RUPEES_SET = "RUPEES_SET";
+
+    // Foliage-sync packet types (FEATURE_FOLIAGE_SYNC). FOLIAGE_DESTROY
+    // is sent any time a client cuts a foliage actor (currently just
+    // ACTOR_EN_KUSA -- grass clumps and bushes); the server records
+    // the cut in a per-scene set and rebroadcasts. FOLIAGE_SNAPSHOT
+    // is sent by the server when a client transitions into a scene
+    // so newly-arriving peers can hide grass that was already cut
+    // before they got there.
+    inline static const std::string FOLIAGE_DESTROY = "FOLIAGE_DESTROY";
+    inline static const std::string FOLIAGE_SNAPSHOT = "FOLIAGE_SNAPSHOT";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
     // Server-authoritative per-scene authority. Populated/updated by
     // HandlePacket_SceneAuthority. Read by IsAuthorityForCurrentScene
     // and GetSceneAuthorityClientId; never written from gameplay code.
     std::map<s16, uint32_t> sceneAuthorities;
+
+    // Shared-rupees state. lastSyncedRupees tracks the (rupees +
+    // accumulator) value we've already reported as a delta to the
+    // server; the per-frame poll in HookHandlers sends a delta when
+    // local total drifts. isApplyingRemoteRupees suppresses recursion
+    // when we apply a server RUPEES_SET. receivedFirstRupeesSet gates
+    // whether we overwrite the local wallet on receive: the very
+    // first RUPEES_SET seeds lastSyncedRupees so the first delta we
+    // send carries our save's full balance into the room without
+    // resetting our wallet to 0.
+    s32 lastSyncedRupees = 0;
+    bool receivedFirstRupeesSet = false;
+    bool isApplyingRemoteRupees = false;
+
+    // Per-scene set of destroyed-foliage IDs (string-encoded
+    // "actorId:params:x:y:z"). Populated by FOLIAGE_SNAPSHOT and
+    // FOLIAGE_DESTROY packets from the server. Read on actor init to
+    // immediately kill foliage that was cut before we got here.
+    std::map<s16, std::set<std::string>> destroyedFoliage;
     RoomState roomState;
 
     void Enable();
@@ -211,6 +257,9 @@ class Anchor : public Network {
     void SendPacket_UpdateDungeonItems();
     void SendPacket_UpdateRoomState();
     void SendPacket_UpdateTeamState();
+    void SendPacket_UpdateRupees(s32 delta, s32 seed);
+    void SendPacket_FoliageDestroy(s16 sceneNum, const std::string& foliageId);
+    std::string MakeFoliageId(const Actor* actor);
 
     // Enemy sync helpers (Phase 2 PoC)
     bool IsAuthorityForCurrentScene();
