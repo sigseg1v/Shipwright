@@ -122,6 +122,8 @@ class Anchor : public Network {
     void HandlePacket_RupeesSet(nlohmann::json payload);
     void HandlePacket_FoliageDestroy(nlohmann::json payload);
     void HandlePacket_FoliageSnapshot(nlohmann::json payload);
+    void HandlePacket_RockDestroy(nlohmann::json payload);
+    void HandlePacket_RockSnapshot(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -134,8 +136,9 @@ class Anchor : public Network {
     inline static const std::string FEATURE_ENEMY_SYNC = "enemy_sync_v1";
     inline static const std::string FEATURE_SHARED_RUPEES = "shared_rupees_v1";
     inline static const std::string FEATURE_FOLIAGE_SYNC = "foliage_sync_v1";
+    inline static const std::string FEATURE_ROCK_SYNC = "rock_sync_v1";
     inline static const std::vector<std::string> selfFeatures = {
-        FEATURE_ENEMY_SYNC, FEATURE_SHARED_RUPEES, FEATURE_FOLIAGE_SYNC,
+        FEATURE_ENEMY_SYNC, FEATURE_SHARED_RUPEES, FEATURE_FOLIAGE_SYNC, FEATURE_ROCK_SYNC,
     };
     bool ClientHasFeature(uint32_t clientId, const std::string& feature);
 
@@ -197,6 +200,15 @@ class Anchor : public Network {
     inline static const std::string FOLIAGE_DESTROY = "FOLIAGE_DESTROY";
     inline static const std::string FOLIAGE_SNAPSHOT = "FOLIAGE_SNAPSHOT";
 
+    // Rock-sync packet types (FEATURE_ROCK_SYNC). Same shape as the
+    // foliage pair but for liftable/breakable rock actors (currently
+    // ACTOR_EN_ISHI -- small grey rocks that drop a collectible when
+    // smashed, plus large silver boulders). ROCK_DESTROY is sent on
+    // local Actor_Kill of a synced rock; the server records and
+    // rebroadcasts. ROCK_SNAPSHOT is sent to clients on scene entry.
+    inline static const std::string ROCK_DESTROY = "ROCK_DESTROY";
+    inline static const std::string ROCK_SNAPSHOT = "ROCK_SNAPSHOT";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
     // Server-authoritative per-scene authority. Populated/updated by
@@ -222,6 +234,8 @@ class Anchor : public Network {
     // FOLIAGE_DESTROY packets from the server. Read on actor init to
     // immediately kill foliage that was cut before we got here.
     std::map<s16, std::set<std::string>> destroyedFoliage;
+    // Same encoding/lifecycle as destroyedFoliage but for rocks.
+    std::map<s16, std::set<std::string>> destroyedRocks;
     RoomState roomState;
 
     void Enable();
@@ -260,6 +274,8 @@ class Anchor : public Network {
     void SendPacket_UpdateRupees(s32 delta, s32 seed);
     void SendPacket_FoliageDestroy(s16 sceneNum, const std::string& foliageId);
     std::string MakeFoliageId(const Actor* actor);
+    void SendPacket_RockDestroy(s16 sceneNum, const std::string& rockId);
+    std::string MakeRockId(const Actor* actor);
 
     // Enemy sync helpers (Phase 2 PoC)
     bool IsAuthorityForCurrentScene();

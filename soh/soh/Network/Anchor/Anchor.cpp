@@ -27,6 +27,7 @@ void Anchor::Disable() {
     clients.clear();
     sceneAuthorities.clear();
     destroyedFoliage.clear();
+    destroyedRocks.clear();
     lastSyncedRupees = 0;
     receivedFirstRupeesSet = false;
     isApplyingRemoteRupees = false;
@@ -108,10 +109,11 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
                              packetType == ENEMY_FULL_SNAPSHOT;
     bool isRupeesPacket = packetType == UPDATE_RUPEES || packetType == RUPEES_SET;
     bool isFoliagePacket = packetType == FOLIAGE_DESTROY || packetType == FOLIAGE_SNAPSHOT;
+    bool isRockPacket = packetType == ROCK_DESTROY || packetType == ROCK_SNAPSHOT;
 
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
     if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
-        !isEnemySyncPacket && !isRupeesPacket && !isFoliagePacket) {
+        !isEnemySyncPacket && !isRupeesPacket && !isFoliagePacket && !isRockPacket) {
         if (payload.contains("clientId")) {
             uint32_t clientId = payload["clientId"].get<uint32_t>();
             if (clients.contains(clientId) && clients[clientId].clientVersion != clientVersion) {
@@ -141,6 +143,12 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     if (isFoliagePacket && payload.contains("clientId")) {
         uint32_t clientId = payload["clientId"].get<uint32_t>();
         if (!ClientHasFeature(clientId, FEATURE_FOLIAGE_SYNC)) {
+            return;
+        }
+    }
+    if (isRockPacket && payload.contains("clientId")) {
+        uint32_t clientId = payload["clientId"].get<uint32_t>();
+        if (!ClientHasFeature(clientId, FEATURE_ROCK_SYNC)) {
             return;
         }
     }
@@ -229,6 +237,10 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_FoliageDestroy(payload);
             else if (packetType == FOLIAGE_SNAPSHOT)
                 HandlePacket_FoliageSnapshot(payload);
+            else if (packetType == ROCK_DESTROY)
+                HandlePacket_RockDestroy(payload);
+            else if (packetType == ROCK_SNAPSHOT)
+                HandlePacket_RockSnapshot(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());

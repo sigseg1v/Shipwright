@@ -177,6 +177,32 @@ void Anchor::RegisterHooks() {
         SendPacket_FoliageDestroy(sceneNum, id);
     });
 
+    // Rock sync: same shape as foliage. Hides any rocks already
+    // smashed (per the per-scene destroyedRocks set) on actor init,
+    // and broadcasts a ROCK_DESTROY when one dies locally (smash in
+    // place, or ground/wall impact after a throw).
+    COND_ID_HOOK(OnActorInit, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr) return;
+        auto it = destroyedRocks.find(gPlayState->sceneNum);
+        if (it == destroyedRocks.end()) return;
+        std::string id = MakeRockId(actor);
+        if (it->second.count(id)) {
+            Actor_Kill(actor);
+        }
+    });
+
+    COND_ID_HOOK(OnActorKill, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        s16 sceneNum = gPlayState->sceneNum;
+        std::string id = MakeRockId(actor);
+        auto& set = destroyedRocks[sceneNum];
+        if (set.count(id)) return;
+        set.insert(id);
+        SendPacket_RockDestroy(sceneNum, id);
+    });
+
     // Suppress AI tick on non-authority for synced enemies. The hook returns
     // void in COND_ID_HOOK; we set *should = false to skip update. Animation
     // and collider visuals continue advancing because we still write
