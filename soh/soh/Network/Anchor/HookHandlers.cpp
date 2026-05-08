@@ -165,6 +165,10 @@ void Anchor::RegisterHooks() {
     COND_ID_HOOK(OnActorKill, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
+        // actor whose room != curRoom on a room transition. That is not
+        // a real cut event, so skip the broadcast.
+        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
         s16 sceneNum = gPlayState->sceneNum;
         std::string id = MakeFoliageId(actor);
         // Already in our set? Either we just killed it from a
@@ -195,6 +199,10 @@ void Anchor::RegisterHooks() {
     COND_ID_HOOK(OnActorKill, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
+        // actor whose room != curRoom on a room transition. That is not
+        // a real destroy event, so skip the broadcast.
+        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
         s16 sceneNum = gPlayState->sceneNum;
         std::string id = MakeRockId(actor);
         auto& set = destroyedRocks[sceneNum];
