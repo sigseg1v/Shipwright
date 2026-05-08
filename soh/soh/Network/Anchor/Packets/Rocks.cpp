@@ -45,6 +45,15 @@ void Anchor::SendPacket_RockDestroy(s16 sceneNum, const std::string& rockId) {
     SendJsonToRemote(payload);
 }
 
+void Anchor::SendPacket_RockLift(s16 sceneNum, const std::string& rockId, s16 rockType) {
+    nlohmann::json payload;
+    payload["type"] = ROCK_LIFT;
+    payload["sceneNum"] = sceneNum;
+    payload["rockId"] = rockId;
+    payload["rockType"] = rockType;
+    SendJsonToRemote(payload);
+}
+
 static void KillDestroyedRocksInCurrentScene(const std::set<std::string>& set) {
     if (gPlayState == nullptr || set.empty()) {
         return;
@@ -71,6 +80,47 @@ void Anchor::HandlePacket_RockDestroy(nlohmann::json payload) {
     std::string rockId = payload["rockId"].get<std::string>();
 
     destroyedRocks[sceneNum].insert(rockId);
+
+    // Clear any client whose held-rock visual matches this id. This is
+    // how the overhead-rock visual disappears on remote screens when a
+    // player throws and the rock breaks: the throwing client broadcasts
+    // ROCK_DESTROY here, peers recognise the matching held id, and the
+    // dummy player's draw path stops rendering the rock.
+    for (auto& [_, client] : clients) {
+        if (client.heldRockType >= 0 && client.heldRockId == rockId) {
+            client.heldRockType = -1;
+            client.heldRockId.clear();
+        }
+    }
+
+    if (IsSaveLoaded() && gPlayState != nullptr && gPlayState->sceneNum == sceneNum) {
+        std::set<std::string> singleton = { rockId };
+        KillDestroyedRocksInCurrentScene(singleton);
+    }
+}
+
+void Anchor::HandlePacket_RockLift(nlohmann::json payload) {
+    if (!payload.contains("sceneNum") || !payload.contains("rockId") ||
+        !payload.contains("rockType") || !payload.contains("clientId")) {
+        return;
+    }
+    s16 sceneNum = payload["sceneNum"].get<s16>();
+    std::string rockId = payload["rockId"].get<std::string>();
+    s16 rockType = payload["rockType"].get<s16>();
+    uint32_t clientId = payload["clientId"].get<uint32_t>();
+
+    // Treat lift like destroy for world-state purposes: hide the world
+    // rock locally and remember it in destroyedRocks so any subsequent
+    // re-init (e.g. room reload) keeps it hidden. The rock will only
+    // ever come back if the room reloads; once held, vanilla behaviour
+    // already guarantees the rock either flies and breaks or is dropped
+    // and breaks, so we never need to "un-destroy" it.
+    destroyedRocks[sceneNum].insert(rockId);
+
+    if (clients.contains(clientId)) {
+        clients[clientId].heldRockType = rockType;
+        clients[clientId].heldRockId = rockId;
+    }
 
     if (IsSaveLoaded() && gPlayState != nullptr && gPlayState->sceneNum == sceneNum) {
         std::set<std::string> singleton = { rockId };

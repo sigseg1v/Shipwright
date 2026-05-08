@@ -61,6 +61,14 @@ typedef struct {
     f32 ocarinaModulator;
     s8 ocarinaBend;
 
+    // Held-rock state for the overhead visual rendered on the dummy
+    // player. heldRockType == -1 means "not holding anything"; 0/1 are
+    // ROCK_SMALL / ROCK_LARGE. heldRockId is kept so an incoming
+    // ROCK_DESTROY for a specific rock can clear the matching client's
+    // held-rock overhead without disturbing any other holder.
+    s16 heldRockType = -1;
+    std::string heldRockId;
+
     // Ptr to the dummy player
     Player* player;
 } AnchorClient;
@@ -124,6 +132,8 @@ class Anchor : public Network {
     void HandlePacket_FoliageSnapshot(nlohmann::json payload);
     void HandlePacket_RockDestroy(nlohmann::json payload);
     void HandlePacket_RockSnapshot(nlohmann::json payload);
+    void HandlePacket_RockLift(nlohmann::json payload);
+    void HandlePacket_ItemSpawn(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -208,6 +218,17 @@ class Anchor : public Network {
     // rebroadcasts. ROCK_SNAPSHOT is sent to clients on scene entry.
     inline static const std::string ROCK_DESTROY = "ROCK_DESTROY";
     inline static const std::string ROCK_SNAPSHOT = "ROCK_SNAPSHOT";
+    // Sent when a player picks up a rock locally. Peers hide the world
+    // rock immediately and start rendering an overhead held-rock visual
+    // on the lifting player's dummy. The eventual ROCK_DESTROY clears
+    // the visual once the rock is thrown and breaks.
+    inline static const std::string ROCK_LIFT = "ROCK_LIFT";
+    // Replicates a collectible drop (currently rock-smash drops only).
+    // Sent by the smashing client with the actual rolled item params so
+    // every peer spawns the same drop. Relayed by the server with no
+    // dedup; peers' EnItem00 instances despawn naturally on their own
+    // timers and rupee count is reconciled via FEATURE_SHARED_RUPEES.
+    inline static const std::string ITEM_SPAWN = "ITEM_SPAWN";
 
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
@@ -236,6 +257,19 @@ class Anchor : public Network {
     std::map<s16, std::set<std::string>> destroyedFoliage;
     // Same encoding/lifecycle as destroyedFoliage but for rocks.
     std::map<s16, std::set<std::string>> destroyedRocks;
+
+    // Per-scene set of rockIds for which we (this client) have already
+    // broadcast a ROCK_LIFT in the current scene visit. Prevents
+    // re-broadcasting on every frame while the rock is held. Cleared on
+    // scene transition. Note: this is *not* the same as destroyedRocks --
+    // we deliberately do NOT add to destroyedRocks when broadcasting LIFT
+    // so the eventual local Actor_Kill (smash on impact) still fires
+    // ROCK_DESTROY for peers to clear the held-rock visual.
+    std::set<std::string> liftedRocksBroadcast;
+    // Per-scene set of EnItem00 actor pointers we've already broadcast as
+    // ITEM_SPAWN, to dedup re-scans. Pointers are stable for the actor's
+    // lifetime; cleared on scene transition.
+    std::set<Actor*> rockItemDropsBroadcast;
     RoomState roomState;
 
     void Enable();
@@ -275,6 +309,8 @@ class Anchor : public Network {
     void SendPacket_FoliageDestroy(s16 sceneNum, const std::string& foliageId);
     std::string MakeFoliageId(const Actor* actor);
     void SendPacket_RockDestroy(s16 sceneNum, const std::string& rockId);
+    void SendPacket_RockLift(s16 sceneNum, const std::string& rockId, s16 rockType);
+    void SendPacket_ItemSpawn(s16 sceneNum, f32 x, f32 y, f32 z, s16 params);
     std::string MakeRockId(const Actor* actor);
 
     // Enemy sync helpers (Phase 2 PoC)

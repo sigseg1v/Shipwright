@@ -66,6 +66,14 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnSceneSpawnActors, isConnected, [&]() {
         SendPacket_UpdateClientState();
 
+        // Per-scene caches that track what we've already announced to peers
+        // about rocks and rock-drops in this scene visit. They key off
+        // either rock ids (stable across reloads) or live Actor* pointers
+        // (only meaningful for the current scene's actor instances), so
+        // both must be wiped when the scene's actor list is rebuilt.
+        liftedRocksBroadcast.clear();
+        rockItemDropsBroadcast.clear();
+
         if (IsSaveLoaded()) {
             RefreshClientActors();
             EnemySync_OnSceneSpawnActors();
@@ -196,6 +204,24 @@ void Anchor::RegisterHooks() {
         }
     });
 
+    // Detect a local pickup the same frame the player attaches the rock:
+    // EnIshi_Wait flips into LiftedUp once Actor_HasParent (i.e.
+    // actor->parent != NULL). Broadcast ROCK_LIFT once per rock per scene
+    // so peers can hide their world copy and start rendering an overhead
+    // visual on the lifting client's dummy player. We deliberately don't
+    // add to destroyedRocks here -- the eventual local Actor_Kill (smash
+    // on impact) still needs to fire ROCK_DESTROY so peers can clear the
+    // overhead visual.
+    COND_ID_HOOK(OnActorUpdate, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        if (actor->parent == NULL) return;
+        std::string id = MakeRockId(actor);
+        if (liftedRocksBroadcast.count(id)) return;
+        liftedRocksBroadcast.insert(id);
+        SendPacket_RockLift(gPlayState->sceneNum, id, (s16)(actor->params & 1));
+    });
+
     COND_ID_HOOK(OnActorKill, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
@@ -206,9 +232,34 @@ void Anchor::RegisterHooks() {
         s16 sceneNum = gPlayState->sceneNum;
         std::string id = MakeRockId(actor);
         auto& set = destroyedRocks[sceneNum];
-        if (set.count(id)) return;
-        set.insert(id);
-        SendPacket_RockDestroy(sceneNum, id);
+        if (!set.count(id)) {
+            set.insert(id);
+            SendPacket_RockDestroy(sceneNum, id);
+        }
+
+        // Replicate any collectible drop the rock just spawned. EnIshi
+        // calls Item_DropCollectibleRandom *before* Actor_Kill in both
+        // smash paths (EnIshi_Wait sword/explosion hit and EnIshi_Fly
+        // ground/wall impact), so by the time we run here the EnItem00
+        // is already in ACTORCAT_MISC. We capture the rolled params
+        // verbatim and broadcast them so peers spawn the same drop type
+        // at the same position rather than re-rolling.
+        Vec3f rockPos = actor->world.pos;
+        Actor* it = gPlayState->actorCtx.actorLists[ACTORCAT_MISC].head;
+        while (it != NULL) {
+            Actor* next = it->next;
+            if (it->id == ACTOR_EN_ITEM00 && !rockItemDropsBroadcast.count(it)) {
+                f32 dx = it->world.pos.x - rockPos.x;
+                f32 dy = it->world.pos.y - rockPos.y;
+                f32 dz = it->world.pos.z - rockPos.z;
+                if (dx * dx + dy * dy + dz * dz < 30.0f * 30.0f) {
+                    rockItemDropsBroadcast.insert(it);
+                    SendPacket_ItemSpawn(sceneNum, it->world.pos.x, it->world.pos.y, it->world.pos.z,
+                                         (s16)it->params);
+                }
+            }
+            it = next;
+        }
     });
 
     // Suppress AI tick on non-authority for synced enemies. The hook returns

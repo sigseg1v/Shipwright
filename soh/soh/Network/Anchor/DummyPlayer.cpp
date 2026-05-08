@@ -1,5 +1,6 @@
 #include "Anchor.h"
 #include "soh/Enhancements/nametag.h"
+#include "soh/frame_interpolation.h"
 
 extern "C" {
 #include "macros.h"
@@ -10,6 +11,12 @@ extern PlayState* gPlayState;
 void Player_UseItem(PlayState* play, Player* player, s32 item);
 void Player_Draw(Actor* actor, PlayState* play);
 }
+
+// Rock display list paths (OTR-resolved strings cast to Gfx*). Defined
+// as static const char[] in gameplay_field_keep.h; we declare locally
+// to avoid pulling that whole asset header into this TU.
+static const char kHeldFieldKakeraDL[] = "__OTR__objects/gameplay_field_keep/gFieldKakeraDL";
+static const char kHeldSilverRockDL[] = "__OTR__objects/gameplay_field_keep/gSilverRockDL";
 
 static DamageTable DummyPlayerDamageTable = {
     /* Deku nut      */ DMG_ENTRY(0, DUMMY_PLAYER_HIT_RESPONSE_STUN),
@@ -239,6 +246,29 @@ void DummyPlayer_Draw(Actor* actor, PlayState* play) {
     Player_Draw((Actor*)player, play);
     gSaveContext.linkAge = originalAge;
     gSaveContext.equips.buttonItems[0] = originalButtonItem0;
+
+    // Draw the rock the remote player is currently carrying above their
+    // head. heldRockType is set by HandlePacket_RockLift and cleared by
+    // HandlePacket_RockDestroy (or when we hear the matching DESTROY for
+    // a held rockId). Mirrors EnIshi_DrawSmall / EnIshi_DrawLarge.
+    if (client.heldRockType >= 0) {
+        f32 scale = (client.heldRockType == 0) ? 0.1f : 0.4f;
+        f32 yOffset = (client.heldRockType == 0) ? 60.0f : 70.0f;
+        Matrix_Translate(actor->world.pos.x, actor->world.pos.y + yOffset, actor->world.pos.z, MTXMODE_NEW);
+        Matrix_RotateY((s16)((play->gameplayFrames * 1000) & 0xFFFF), MTXMODE_APPLY);
+        Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
+        if (client.heldRockType == 0) {
+            Gfx_DrawDListOpa(play, (Gfx*)kHeldFieldKakeraDL);
+        } else {
+            OPEN_DISPS(play->state.gfxCtx);
+            Gfx_SetupDL_25Opa(play->state.gfxCtx);
+            gSPMatrix(POLY_OPA_DISP++, MATRIX_NEWMTX(play->state.gfxCtx),
+                      G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
+            gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, 255, 255, 255);
+            gSPDisplayList(POLY_OPA_DISP++, (Gfx*)kHeldSilverRockDL);
+            CLOSE_DISPS(play->state.gfxCtx);
+        }
+    }
 }
 
 void DummyPlayer_Destroy(Actor* actor, PlayState* play) {
