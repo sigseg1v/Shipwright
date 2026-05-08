@@ -225,6 +225,11 @@ void Anchor::RegisterHooks() {
     COND_ID_HOOK(OnActorKill, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        // The peer's HandlePacket_RockDestroy / HandlePacket_RockLift /
+        // HandlePacket_RockSnapshot all call Actor_Kill on matching
+        // local rocks, which re-fires this hook. Without this guard we
+        // bounce ROCK_DESTROY back to the server and storm the room.
+        if (isProcessingIncomingPacket) return;
         // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
         // actor whose room != curRoom on a room transition. That is not
         // a real destroy event, so skip the broadcast.
