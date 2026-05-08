@@ -255,7 +255,7 @@ void DummyPlayer_Draw(Actor* actor, PlayState* play) {
         f32 scale = (client.heldRockType == 0) ? 0.1f : 0.4f;
         f32 yOffset = (client.heldRockType == 0) ? 60.0f : 70.0f;
         Matrix_Translate(actor->world.pos.x, actor->world.pos.y + yOffset, actor->world.pos.z, MTXMODE_NEW);
-        Matrix_RotateY((s16)((play->gameplayFrames * 1000) & 0xFFFF), MTXMODE_APPLY);
+        Matrix_RotateY(BINANG_TO_RAD(actor->shape.rot.y), MTXMODE_APPLY);
         Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
         if (client.heldRockType == 0) {
             Gfx_DrawDListOpa(play, (Gfx*)kHeldFieldKakeraDL);

@@ -54,8 +54,13 @@ void Anchor::HandlePacket_ItemSpawn(nlohmann::json payload) {
     pos.z = payload["z"].get<f32>();
     s16 params = payload["params"].get<s16>();
 
-    // 0x8000 tells Item_DropCollectible to take params verbatim instead
-    // of re-rolling through func_8001F404. Without that bit our peers
-    // would get a different drop type than the originator.
-    Item_DropCollectible(gPlayState, &pos, params | 0x8000);
+    // Spawn a normal collectible on the ground. NOTE: do not set the
+    // 0x8000 bit -- in EnItem00_Init that flag means "give item directly
+    // to Link" (auto-collect, used by Item_Give-style flows), not "skip
+    // random roll". Setting it here would silently award the drop to the
+    // local player instead of spawning a pickable rupee. The originator
+    // already filtered the drop type through func_8001F404 in
+    // Item_DropCollectibleRandom, so an extra pass on this side is
+    // effectively idempotent for the rock drop table.
+    Item_DropCollectible(gPlayState, &pos, params);
 }
