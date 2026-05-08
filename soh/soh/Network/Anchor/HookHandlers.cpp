@@ -73,6 +73,7 @@ void Anchor::RegisterHooks() {
         // both must be wiped when the scene's actor list is rebuilt.
         liftedRocksBroadcast.clear();
         rockItemDropsBroadcast.clear();
+        rocksKilledByInitMatch.clear();
         itemActorToId.clear();
         itemIdToActor.clear();
 
@@ -202,6 +203,11 @@ void Anchor::RegisterHooks() {
         if (it == destroyedRocks.end()) return;
         std::string id = MakeRockId(actor);
         if (it->second.count(id)) {
+            // Tag before Actor_Kill so the OnActorKill hook below knows
+            // this is a "we already knew it was gone" kill and skips the
+            // broadcast even if MakeRockId computes a slightly different
+            // id at kill time (e.g. SnapToFloor raycast variance).
+            rocksKilledByInitMatch.insert(actor);
             Actor_Kill(actor);
         }
     });
@@ -232,6 +238,24 @@ void Anchor::RegisterHooks() {
         // local rocks, which re-fires this hook. Without this guard we
         // bounce ROCK_DESTROY back to the server and storm the room.
         if (isProcessingIncomingPacket) return;
+        // Our OnActorInit hook above kills rocks already in destroyedRocks
+        // when entering range. That kill fires this hook synchronously --
+        // suppress it explicitly rather than relying on the id-in-set
+        // check below, since the init- and kill-time ids can drift
+        // (SnapToFloor raycast variance) and even one mismatch sends a
+        // bogus ROCK_DESTROY that storms the whole room.
+        auto initKill = rocksKilledByInitMatch.find(actor);
+        if (initKill != rocksKilledByInitMatch.end()) {
+            rocksKilledByInitMatch.erase(initKill);
+            return;
+        }
+        // EnIshi_Init itself can call Actor_Kill (large rock with switch
+        // flag set, dungeon-rando boulder cull, SnapToFloor failure) --
+        // those fire OnActorKill before the actor finished init, so
+        // home.pos is still the spawn-entry value and MakeRockId here
+        // wouldn't match the snapped id used at the original destroy.
+        // Skip; the original destroy already broadcast.
+        if (actor->init != NULL) return;
         // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
         // actor whose room != curRoom on a room transition. That is not
         // a real destroy event, so skip the broadcast.
