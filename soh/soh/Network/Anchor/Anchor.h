@@ -134,6 +134,7 @@ class Anchor : public Network {
     void HandlePacket_RockSnapshot(nlohmann::json payload);
     void HandlePacket_RockLift(nlohmann::json payload);
     void HandlePacket_ItemSpawn(nlohmann::json payload);
+    void HandlePacket_ItemCollect(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -229,6 +230,12 @@ class Anchor : public Network {
     // dedup; peers' EnItem00 instances despawn naturally on their own
     // timers and rupee count is reconciled via FEATURE_SHARED_RUPEES.
     inline static const std::string ITEM_SPAWN = "ITEM_SPAWN";
+    // Sent on local Actor_Kill of any synced EnItem00. Peers find the
+    // matching local actor by itemId and Actor_Kill it so the rupee /
+    // heart / etc. disappears in lockstep with the player who picked it
+    // up. Stateless server relay; no snapshot since spawned items are
+    // ephemeral (despawn naturally on their own ~13s timer).
+    inline static const std::string ITEM_COLLECT = "ITEM_COLLECT";
 
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
@@ -270,6 +277,18 @@ class Anchor : public Network {
     // ITEM_SPAWN, to dedup re-scans. Pointers are stable for the actor's
     // lifetime; cleared on scene transition.
     std::set<Actor*> rockItemDropsBroadcast;
+
+    // Bidirectional mapping for synced EnItem00 collection. Both sender
+    // and receiver bind their local EnItem00 actor pointer to the same
+    // itemId so either can broadcast ITEM_COLLECT on local Actor_Kill
+    // and any peer can resolve it back to their own local actor to kill.
+    // Cleared on scene transition; entries also erased when the actor
+    // dies. itemSpawnSeq is monotonically increasing on the originator;
+    // we mix in our clientId so concurrent rolls from two clients don't
+    // collide on the wire.
+    std::map<Actor*, uint64_t> itemActorToId;
+    std::map<uint64_t, Actor*> itemIdToActor;
+    uint64_t itemSpawnSeq = 0;
     RoomState roomState;
 
     void Enable();
@@ -310,7 +329,8 @@ class Anchor : public Network {
     std::string MakeFoliageId(const Actor* actor);
     void SendPacket_RockDestroy(s16 sceneNum, const std::string& rockId);
     void SendPacket_RockLift(s16 sceneNum, const std::string& rockId, s16 rockType);
-    void SendPacket_ItemSpawn(s16 sceneNum, f32 x, f32 y, f32 z, s16 params);
+    void SendPacket_ItemSpawn(s16 sceneNum, uint64_t itemId, f32 x, f32 y, f32 z, s16 params);
+    void SendPacket_ItemCollect(uint64_t itemId);
     std::string MakeRockId(const Actor* actor);
 
     // Enemy sync helpers (Phase 2 PoC)

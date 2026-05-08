@@ -73,6 +73,8 @@ void Anchor::RegisterHooks() {
         // both must be wiped when the scene's actor list is rebuilt.
         liftedRocksBroadcast.clear();
         rockItemDropsBroadcast.clear();
+        itemActorToId.clear();
+        itemIdToActor.clear();
 
         if (IsSaveLoaded()) {
             RefreshClientActors();
@@ -259,11 +261,36 @@ void Anchor::RegisterHooks() {
                 f32 dz = it->world.pos.z - rockPos.z;
                 if (dx * dx + dy * dy + dz * dz < 30.0f * 30.0f) {
                     rockItemDropsBroadcast.insert(it);
-                    SendPacket_ItemSpawn(sceneNum, it->world.pos.x, it->world.pos.y, it->world.pos.z,
-                                         (s16)it->params);
+                    // itemId combines our clientId in the high 32 bits with a
+                    // local sequence in the low 32 bits, so concurrent rolls
+                    // from two clients can't collide on the wire.
+                    uint64_t itemId = ((uint64_t)ownClientId << 32) | (++itemSpawnSeq);
+                    itemActorToId[it] = itemId;
+                    itemIdToActor[itemId] = it;
+                    SendPacket_ItemSpawn(sceneNum, itemId, it->world.pos.x, it->world.pos.y,
+                                         it->world.pos.z, (s16)it->params);
                 }
             }
             it = next;
+        }
+    });
+
+    // EnItem00 collection sync. When a tracked dropped item dies locally
+    // (player picked it up, or its ~13s despawn timer ran out) broadcast
+    // ITEM_COLLECT so peers Actor_Kill their bound copy. Skip when the
+    // kill came from our own HandlePacket_ItemCollect, otherwise two
+    // peers would bounce the same id back and forth.
+    COND_ID_HOOK(OnActorKill, ACTOR_EN_ITEM00, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (isProcessingIncomingPacket) return;
+        auto it = itemActorToId.find(actor);
+        if (it == itemActorToId.end()) return;
+        uint64_t itemId = it->second;
+        SendPacket_ItemCollect(itemId);
+        itemActorToId.erase(it);
+        auto i2a = itemIdToActor.find(itemId);
+        if (i2a != itemIdToActor.end()) {
+            itemIdToActor.erase(i2a);
         }
     });
 

@@ -110,7 +110,8 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     bool isRupeesPacket = packetType == UPDATE_RUPEES || packetType == RUPEES_SET;
     bool isFoliagePacket = packetType == FOLIAGE_DESTROY || packetType == FOLIAGE_SNAPSHOT;
     bool isRockPacket = packetType == ROCK_DESTROY || packetType == ROCK_SNAPSHOT ||
-                        packetType == ROCK_LIFT || packetType == ITEM_SPAWN;
+                        packetType == ROCK_LIFT || packetType == ITEM_SPAWN ||
+                        packetType == ITEM_COLLECT;
 
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
     if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
@@ -246,6 +247,8 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_RockLift(payload);
             else if (packetType == ITEM_SPAWN)
                 HandlePacket_ItemSpawn(payload);
+            else if (packetType == ITEM_COLLECT)
+                HandlePacket_ItemCollect(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());
