@@ -73,7 +73,6 @@ void Anchor::RegisterHooks() {
         // both must be wiped when the scene's actor list is rebuilt.
         liftedRocksBroadcast.clear();
         rockItemDropsBroadcast.clear();
-        rocksKilledByInitMatch.clear();
         itemActorToId.clear();
         itemIdToActor.clear();
 
@@ -203,99 +202,76 @@ void Anchor::RegisterHooks() {
         if (it == destroyedRocks.end()) return;
         std::string id = MakeRockId(actor);
         if (it->second.count(id)) {
-            // Tag before Actor_Kill so the OnActorKill hook below knows
-            // this is a "we already knew it was gone" kill and skips the
-            // broadcast even if MakeRockId computes a slightly different
-            // id at kill time (e.g. SnapToFloor raycast variance).
-            rocksKilledByInitMatch.insert(actor);
             Actor_Kill(actor);
         }
     });
 
-    // Detect a local pickup the same frame the player attaches the rock:
-    // EnIshi_Wait flips into LiftedUp once Actor_HasParent (i.e.
-    // actor->parent != NULL). Broadcast ROCK_LIFT once per rock per scene
-    // so peers can hide their world copy and start rendering an overhead
-    // visual on the lifting client's dummy player. We deliberately don't
-    // add to destroyedRocks here -- the eventual local Actor_Kill (smash
-    // on impact) still needs to fire ROCK_DESTROY so peers can clear the
-    // overhead visual.
+    // We detect both LIFT and DESTROY in OnActorUpdate (which fires after
+    // the actor's update fn runs). DESTROY is deliberately *not* hooked
+    // off OnActorKill because Actor_Kill is called from many engine paths
+    // that aren't real smashes -- room cleanup (z_actor.c func_80031B14),
+    // object-bank eviction (z_actor.c:2648), incoming-packet handlers
+    // killing our local copy, EnIshi_Init early-outs (large-rock switch
+    // flag, dungeon-rando cull, SnapToFloor failure). All of those skip
+    // actor->update, so observing actor->update == NULL post-update means
+    // the rock's own update fn (EnIshi_Wait sword/explosion path or
+    // EnIshi_Fly impact path) is what called Actor_Kill -- a real destroy.
     COND_ID_HOOK(OnActorUpdate, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
-        if (actor->parent == NULL) return;
-        std::string id = MakeRockId(actor);
-        if (liftedRocksBroadcast.count(id)) return;
-        liftedRocksBroadcast.insert(id);
-        SendPacket_RockLift(gPlayState->sceneNum, id, (s16)(actor->params & 1));
-    });
 
-    COND_ID_HOOK(OnActorKill, ACTOR_EN_ISHI, isConnected, [&](void* refActor) {
-        Actor* actor = (Actor*)refActor;
-        if (gPlayState == nullptr || !IsSaveLoaded()) return;
-        // The peer's HandlePacket_RockDestroy / HandlePacket_RockLift /
-        // HandlePacket_RockSnapshot all call Actor_Kill on matching
-        // local rocks, which re-fires this hook. Without this guard we
-        // bounce ROCK_DESTROY back to the server and storm the room.
-        if (isProcessingIncomingPacket) return;
-        // Our OnActorInit hook above kills rocks already in destroyedRocks
-        // when entering range. That kill fires this hook synchronously --
-        // suppress it explicitly rather than relying on the id-in-set
-        // check below, since the init- and kill-time ids can drift
-        // (SnapToFloor raycast variance) and even one mismatch sends a
-        // bogus ROCK_DESTROY that storms the whole room.
-        auto initKill = rocksKilledByInitMatch.find(actor);
-        if (initKill != rocksKilledByInitMatch.end()) {
-            rocksKilledByInitMatch.erase(initKill);
-            return;
-        }
-        // EnIshi_Init itself can call Actor_Kill (large rock with switch
-        // flag set, dungeon-rando boulder cull, SnapToFloor failure) --
-        // those fire OnActorKill before the actor finished init, so
-        // home.pos is still the spawn-entry value and MakeRockId here
-        // wouldn't match the snapped id used at the original destroy.
-        // Skip; the original destroy already broadcast.
-        if (actor->init != NULL) return;
-        // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
-        // actor whose room != curRoom on a room transition. That is not
-        // a real destroy event, so skip the broadcast.
-        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
-        s16 sceneNum = gPlayState->sceneNum;
-        std::string id = MakeRockId(actor);
-        auto& set = destroyedRocks[sceneNum];
-        if (!set.count(id)) {
-            set.insert(id);
-            SendPacket_RockDestroy(sceneNum, id);
-        }
-
-        // Replicate any collectible drop the rock just spawned. EnIshi
-        // calls Item_DropCollectibleRandom *before* Actor_Kill in both
-        // smash paths (EnIshi_Wait sword/explosion hit and EnIshi_Fly
-        // ground/wall impact), so by the time we run here the EnItem00
-        // is already in ACTORCAT_MISC. We capture the rolled params
-        // verbatim and broadcast them so peers spawn the same drop type
-        // at the same position rather than re-rolling.
-        Vec3f rockPos = actor->world.pos;
-        Actor* it = gPlayState->actorCtx.actorLists[ACTORCAT_MISC].head;
-        while (it != NULL) {
-            Actor* next = it->next;
-            if (it->id == ACTOR_EN_ITEM00 && !rockItemDropsBroadcast.count(it)) {
-                f32 dx = it->world.pos.x - rockPos.x;
-                f32 dy = it->world.pos.y - rockPos.y;
-                f32 dz = it->world.pos.z - rockPos.z;
-                if (dx * dx + dy * dy + dz * dz < 30.0f * 30.0f) {
-                    rockItemDropsBroadcast.insert(it);
-                    // itemId combines our clientId in the high 32 bits with a
-                    // local sequence in the low 32 bits, so concurrent rolls
-                    // from two clients can't collide on the wire.
-                    uint64_t itemId = ((uint64_t)ownClientId << 32) | (++itemSpawnSeq);
-                    itemActorToId[it] = itemId;
-                    itemIdToActor[itemId] = it;
-                    SendPacket_ItemSpawn(sceneNum, itemId, it->world.pos.x, it->world.pos.y,
-                                         it->world.pos.z, (s16)it->params);
-                }
+        // Lift broadcast: EnIshi_Wait flips to LiftedUp once parent is
+        // attached (player picks the rock up). One ROCK_LIFT per rock per
+        // scene; we deliberately do NOT add to destroyedRocks so the
+        // later self-kill on impact still fires ROCK_DESTROY for peers
+        // to clear the held-rock visual.
+        if (actor->parent != NULL) {
+            std::string liftId = MakeRockId(actor);
+            if (!liftedRocksBroadcast.count(liftId)) {
+                liftedRocksBroadcast.insert(liftId);
+                SendPacket_RockLift(gPlayState->sceneNum, liftId, (s16)(actor->params & 1));
             }
-            it = next;
+        }
+
+        // Self-kill broadcast.
+        if (actor->update == NULL) {
+            s16 sceneNum = gPlayState->sceneNum;
+            std::string id = MakeRockId(actor);
+            auto& set = destroyedRocks[sceneNum];
+            if (!set.count(id)) {
+                set.insert(id);
+                SendPacket_RockDestroy(sceneNum, id);
+            }
+
+            // Replicate any collectible drop the rock just spawned. EnIshi
+            // calls Item_DropCollectibleRandom *before* Actor_Kill in both
+            // smash paths, so by the time we run here the EnItem00 is
+            // already in ACTORCAT_MISC. We capture the rolled params
+            // verbatim and broadcast them so peers spawn the same drop
+            // type at the same position rather than re-rolling.
+            Vec3f rockPos = actor->world.pos;
+            Actor* it = gPlayState->actorCtx.actorLists[ACTORCAT_MISC].head;
+            while (it != NULL) {
+                Actor* next = it->next;
+                if (it->id == ACTOR_EN_ITEM00 && !rockItemDropsBroadcast.count(it)) {
+                    f32 dx = it->world.pos.x - rockPos.x;
+                    f32 dy = it->world.pos.y - rockPos.y;
+                    f32 dz = it->world.pos.z - rockPos.z;
+                    if (dx * dx + dy * dy + dz * dz < 30.0f * 30.0f) {
+                        rockItemDropsBroadcast.insert(it);
+                        // itemId combines our clientId in the high 32 bits
+                        // with a local sequence in the low 32 bits, so
+                        // concurrent rolls from two clients can't collide
+                        // on the wire.
+                        uint64_t itemId = ((uint64_t)ownClientId << 32) | (++itemSpawnSeq);
+                        itemActorToId[it] = itemId;
+                        itemIdToActor[itemId] = it;
+                        SendPacket_ItemSpawn(sceneNum, itemId, it->world.pos.x, it->world.pos.y,
+                                             it->world.pos.z, (s16)it->params);
+                    }
+                }
+                it = next;
+            }
         }
     });
 

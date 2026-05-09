@@ -277,13 +277,6 @@ class Anchor : public Network {
     // ITEM_SPAWN, to dedup re-scans. Pointers are stable for the actor's
     // lifetime; cleared on scene transition.
     std::set<Actor*> rockItemDropsBroadcast;
-    // Rocks that our own OnActorInit hook just Actor_Killed because they
-    // were already in destroyedRocks. Actor_Kill synchronously fires the
-    // OnActorKill hook, and we don't want that to re-broadcast a destroy
-    // for a rock we already know is gone (a stale id mismatch between
-    // the init- and kill-time MakeRockId would otherwise loop the room).
-    // Cleared on scene transition.
-    std::set<Actor*> rocksKilledByInitMatch;
 
     // Bidirectional mapping for synced EnItem00 collection. Both sender
     // and receiver bind their local EnItem00 actor pointer to the same
