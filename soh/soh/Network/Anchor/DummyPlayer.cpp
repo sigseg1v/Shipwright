@@ -18,6 +18,23 @@ void Player_Draw(Actor* actor, PlayState* play);
 static const char kHeldFieldKakeraDL[] = "__OTR__objects/gameplay_field_keep/gFieldKakeraDL";
 static const char kHeldSilverRockDL[] = "__OTR__objects/gameplay_field_keep/gSilverRockDL";
 
+// One-handed overhead carry idle (pots/small rocks/etc). The path is
+// resolved by ResourceMgr_LoadAnimByName on first use; we declare it
+// locally to avoid pulling gameplay_keep.h into this TU. Cast to
+// LinkAnimationHeader* matches how z_player.c passes it around.
+static const char kCarryBWaitAnim[] = "__OTR__objects/gameplay_keep/gPlayerAnim_link_normal_carryB_wait";
+
+// Mirrors sUpperBodyLimbCopyMap from z_player.c -- which limb indices
+// the engine's deferred SetCopyTrue overlays from upperSkelAnime onto
+// the main skeleton when an upper-body action (e.g. carrying) is
+// active. Indexed by PLAYER_LIMB_*; index 0 (PLAYER_LIMB_NONE) and
+// indices 1..9 (root, waist, lower, legs) are false; 10..21 (upper,
+// head, arms, etc) are true.
+static u8 sDummyUpperBodyLimbCopyMap[PLAYER_LIMB_MAX] = {
+    false, false, false, false, false, false, false, false, false, false,
+    true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,  true,
+};
+
 static DamageTable DummyPlayerDamageTable = {
     /* Deku nut      */ DMG_ENTRY(0, DUMMY_PLAYER_HIT_RESPONSE_STUN),
     /* Deku stick    */ DMG_ENTRY(2, DUMMY_PLAYER_HIT_RESPONSE_NORMAL),
@@ -175,6 +192,28 @@ void DummyPlayer_Update(Actor* actor, PlayState* play) {
         gSaveContext.equips.buttonItems[0] = originalButtonItem0;
     }
 
+    // Force the one-handed overhead carry pose on the dummy's upper
+    // body whenever the remote client is holding a small rock. The
+    // synced jointTable from PLAYER_UPDATE only reflects the engine's
+    // *prior* deferred upper-body copy, which during pickup transitions
+    // and other races can leave the upper limbs at a running pose --
+    // resulting in arms-by-sides while the rock visual floats above.
+    // Driving carryB_wait locally and queuing the same SetCopyTrue the
+    // engine uses (z_player.c:3634) keeps the pose stable. Large
+    // (silver) rocks already carry the full two-handed pose in main
+    // skelAnime jointTable from the sender, so we leave them alone.
+    if (client.heldRockType == 0) {
+        if (!client.dummyCarryAnimActive) {
+            LinkAnimation_PlayLoop(play, &player->upperSkelAnime, (LinkAnimationHeader*)kCarryBWaitAnim);
+            client.dummyCarryAnimActive = true;
+        }
+        LinkAnimation_Update(play, &player->upperSkelAnime);
+        AnimationContext_SetCopyTrue(play, player->skelAnime.limbCount, player->skelAnime.jointTable,
+                                     player->upperSkelAnime.jointTable, sDummyUpperBodyLimbCopyMap);
+    } else {
+        client.dummyCarryAnimActive = false;
+    }
+
     if (Anchor::Instance->roomState.pvpMode == 0 ||
         (Anchor::Instance->roomState.pvpMode == 1 &&
          client.teamId == CVarGetString(CVAR_REMOTE_ANCHOR("TeamId"), "default"))) {
@@ -253,7 +292,7 @@ void DummyPlayer_Draw(Actor* actor, PlayState* play) {
     // a held rockId). Mirrors EnIshi_DrawSmall / EnIshi_DrawLarge.
     if (client.heldRockType >= 0) {
         f32 scale = (client.heldRockType == 0) ? 0.1f : 0.4f;
-        f32 yOffset = (client.heldRockType == 0) ? 60.0f : 70.0f;
+        f32 yOffset = (client.heldRockType == 0) ? 45.0f : 55.0f;
         Matrix_Translate(actor->world.pos.x, actor->world.pos.y + yOffset, actor->world.pos.z, MTXMODE_NEW);
         Matrix_RotateY(BINANG_TO_RAD(actor->shape.rot.y), MTXMODE_APPLY);
         Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);

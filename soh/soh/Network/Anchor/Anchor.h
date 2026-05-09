@@ -69,6 +69,11 @@ typedef struct {
     s16 heldRockType = -1;
     std::string heldRockId;
 
+    // Tracks whether we've already started carryB_wait on the dummy's
+    // upperSkelAnime so DummyPlayer_Update only re-issues PlayLoop on
+    // entry (otherwise the anim would reset to frame 0 every tick).
+    bool dummyCarryAnimActive = false;
+
     // Ptr to the dummy player
     Player* player;
 } AnchorClient;
