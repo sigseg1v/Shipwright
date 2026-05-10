@@ -218,7 +218,22 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
         return;
     }
     EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-    if (state == nullptr || !state->isSynced || state->isAuthority || state->enemyNetId == 0) {
+    if (state == nullptr) {
+        SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit actorId=0x{:x} state=null (no NetState)", actor->id);
+        return;
+    }
+    if (!state->isSynced) {
+        SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit actorId=0x{:x} early-return: !isSynced (netId={})",
+                    actor->id, state->enemyNetId);
+        return;
+    }
+    if (state->isAuthority) {
+        SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit actorId=0x{:x} early-return: isAuthority (netId={})",
+                    actor->id, state->enemyNetId);
+        return;
+    }
+    if (state->enemyNetId == 0) {
+        SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit actorId=0x{:x} early-return: enemyNetId==0", actor->id);
         return;
     }
 
@@ -232,9 +247,13 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
 
     uint32_t authority = GetSceneAuthorityClientId(gPlayState->sceneNum);
     if (authority == 0) {
+        SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit actorId=0x{:x} netId={} damage={} early-return: authority==0",
+                    actor->id, state->enemyNetId, damage);
         return;
     }
 
+    SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit forwarding actorId=0x{:x} netId={} damage={} -> authority={}",
+                actor->id, state->enemyNetId, damage, authority);
     SendPacket_EnemyDamage(state->enemyNetId, authority, damage, damageEffect);
 
     // Clear the hit locally. Vanilla update is suppressed, so the actor's own
@@ -311,8 +330,24 @@ void Anchor::EnemySync_OnEnemyDefeat(Actor* actor) {
         return;
     }
     EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-    if (state == nullptr || !state->isSynced || !state->isAuthority || state->enemyNetId == 0) {
+    if (state == nullptr) {
+        SPDLOG_INFO("[Anchor:diag] OnEnemyDefeat actorId=0x{:x} state=null (no NetState)", actor->id);
         return;
     }
+    if (!state->isSynced) {
+        SPDLOG_INFO("[Anchor:diag] OnEnemyDefeat actorId=0x{:x} early-return: !isSynced", actor->id);
+        return;
+    }
+    if (!state->isAuthority) {
+        SPDLOG_INFO("[Anchor:diag] OnEnemyDefeat actorId=0x{:x} netId={} early-return: !isAuthority",
+                    actor->id, state->enemyNetId);
+        return;
+    }
+    if (state->enemyNetId == 0) {
+        SPDLOG_INFO("[Anchor:diag] OnEnemyDefeat actorId=0x{:x} early-return: enemyNetId==0", actor->id);
+        return;
+    }
+    SPDLOG_INFO("[Anchor:diag] OnEnemyDefeat broadcasting ENEMY_DEATH actorId=0x{:x} netId={}",
+                actor->id, state->enemyNetId);
     SendPacket_EnemyDeath(state->enemyNetId);
 }

@@ -28,10 +28,14 @@ extern PlayState* gPlayState;
 
 void Anchor::HandlePacket_SceneAuthority(nlohmann::json payload) {
     if (!payload.contains("sceneNum")) {
+        SPDLOG_INFO("[Anchor:diag] HandlePacket_SceneAuthority no sceneNum");
         return;
     }
     s16 sceneNum = payload["sceneNum"].get<s16>();
     uint32_t authorityClientId = payload.value("authorityClientId", (uint32_t)0);
+
+    SPDLOG_INFO("[Anchor:diag] HandlePacket_SceneAuthority sceneNum={} authorityClientId={} ownClientId={}",
+                (int)sceneNum, authorityClientId, ownClientId);
 
     if (authorityClientId == 0) {
         sceneAuthorities.erase(sceneNum);

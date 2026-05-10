@@ -32,14 +32,18 @@ void Anchor::SendPacket_UpdateRupees(s32 delta, s32 seed) {
     payload["type"] = UPDATE_RUPEES;
     payload["delta"] = delta;
     payload["seed"] = seed;
+    SPDLOG_INFO("[Anchor:diag] SendPacket_UpdateRupees delta={} seed={}", delta, seed);
     SendJsonToRemote(payload);
 }
 
 void Anchor::HandlePacket_RupeesSet(nlohmann::json payload) {
     if (!payload.contains("total")) {
+        SPDLOG_INFO("[Anchor:diag] HandlePacket_RupeesSet missing total");
         return;
     }
     s32 total = payload["total"].get<s32>();
+    SPDLOG_INFO("[Anchor:diag] HandlePacket_RupeesSet total={} localWallet={} localAccum={} isSaveLoaded={}",
+                total, gSaveContext.rupees, gSaveContext.rupeeAccumulator, IsSaveLoaded());
 
     if (!IsSaveLoaded()) {
         // Defer applying until the save is up so we don't write into

@@ -55,6 +55,11 @@ void Anchor::SendPacket_UpdateClientState() {
     payload["type"] = UPDATE_CLIENT_STATE;
     payload["state"] = PrepClientState();
 
+    SPDLOG_INFO("[Anchor:diag] SendPacket_UpdateClientState isSaveLoaded={} sceneNum={} gameMode={}",
+                payload["state"].value("isSaveLoaded", false),
+                (int)payload["state"].value("sceneNum", (s16)-1),
+                (int)gSaveContext.gameMode);
+
     SendJsonToRemote(payload);
 }
 
