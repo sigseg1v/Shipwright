@@ -139,6 +139,16 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnPlayerUpdate, isConnected, [&]() {
         if (justLoadedSave) {
             justLoadedSave = false;
+            // Re-announce client state now that the save is fully up.
+            // The OnSceneSpawnActors-time send during a Load File can
+            // race ahead of gSaveContext.gameMode flipping to
+            // GAMEMODE_NORMAL, in which case PrepClientState reports
+            // isSaveLoaded=false / sceneNum=SCENE_ID_MAX. The server
+            // then treats us as not in any scene and never broadcasts
+            // SCENE_AUTHORITY, leaving both clients in the
+            // "default to self-authority" fallback. By the first
+            // post-load OnPlayerUpdate the save is definitively up.
+            SendPacket_UpdateClientState();
             SendPacket_RequestTeamState();
         }
 
