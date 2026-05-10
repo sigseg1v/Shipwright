@@ -189,9 +189,16 @@ void Anchor::RegisterHooks() {
     });
 
     // Foliage sync: kill grass on init if it was already cut, and
-    // broadcast a destroy when we kill it locally. We treat local
-    // EnKusa Actor_Kill as the destroy event because every cut path
-    // (sword, bomb, regrow timeout) routes through it.
+    // broadcast a destroy when we cut it locally. EnKusa has two cut
+    // paths:
+    //   - TYPE_0 grass tufts call Actor_Kill immediately on slice
+    //     (z_en_kusa.c:327), so OnActorKill is the right event for them.
+    //   - TYPE_1 (regrowing deku shrubs) and TYPE_2 (stays-cut bushes)
+    //     stay alive in a "cut" state -- they set ACTOR_FLAG_GRASS_DESTROYED
+    //     instead of dying. OnActorKill never fires for those, so we
+    //     additionally watch for that flag transitioning on via the
+    //     OnActorUpdate hook below. Without that, slicing a Deku Tree
+    //     shrub on one client wouldn't replicate to peers.
     COND_ID_HOOK(OnActorInit, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr) return;
@@ -216,6 +223,27 @@ void Anchor::RegisterHooks() {
         // FOLIAGE_DESTROY/SNAPSHOT, or someone else's destroy raced
         // ours. Either way the server will dedupe; skip the send to
         // avoid a flood on scene-load mass-kill paths.
+        auto& set = destroyedFoliage[sceneNum];
+        if (set.count(id)) return;
+        set.insert(id);
+        SendPacket_FoliageDestroy(sceneNum, id);
+    });
+
+    // TYPE_1 / TYPE_2 cut detection (see comment above). The actor stays
+    // in the list with ACTOR_FLAG_GRASS_DESTROYED set after the slice.
+    // We don't need explicit edge tracking: the destroyedFoliage set is
+    // checked first and dedupes naturally, so the broadcast fires once
+    // even though the flag stays high until regrow. Receive side
+    // (FOLIAGE_DESTROY -> Actor_Kill) makes peers lose the regrow on
+    // TYPE_1, which is the v1 trade-off; full state replication can
+    // come later if it matters.
+    COND_ID_HOOK(OnActorUpdate, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        if (!(actor->flags & ACTOR_FLAG_GRASS_DESTROYED)) return;
+        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
+        s16 sceneNum = gPlayState->sceneNum;
+        std::string id = MakeFoliageId(actor);
         auto& set = destroyedFoliage[sceneNum];
         if (set.count(id)) return;
         set.insert(id);
