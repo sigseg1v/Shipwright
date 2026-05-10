@@ -163,6 +163,7 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnGameFrameUpdate, isConnected, [&]() {
         ProcessIncomingPacketQueue();
         EnemySync_TickAuthorityBroadcast();
+        EnemySync_TickNonAuthorityLerp();
 
         // Shared-rupees poll. We avoid hooking Rupees_ChangeBy directly
         // and instead diff (rupees + accumulator) once per frame so we
@@ -383,8 +384,9 @@ void Anchor::RegisterHooks() {
     // Macro keeps the per-actor-id triplet (ShouldActorUpdate /
     // OnEnemyDefeat / OnActorDestroy) in sync. Adding a new synced actor
     // type means: (1) extend IsSyncableEnemy in EnemySync.cpp, (2) add a
-    // collider AC_HIT clear in EnemySync_HandleNonAuthorityHit, and (3)
-    // append one ANCHOR_REGISTER_ENEMY_SYNC_HOOKS line below.
+    // collider AC_HIT clear in EnemySync_HandleNonAuthorityHit, (3) add a
+    // CollisionCheck_SetAC call for each collider in EnemySync_RegisterAC,
+    // and (4) append one ANCHOR_REGISTER_ENEMY_SYNC_HOOKS line below.
 #define ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_ID)                                                  \
     COND_ID_HOOK(ShouldActorUpdate, ACTOR_ID, isConnected, [&](void* refActor, bool* should) {     \
         Actor* actor = (Actor*)refActor;                                                            \
@@ -393,7 +395,13 @@ void Anchor::RegisterHooks() {
             return;                                                                                 \
         }                                                                                           \
         if (!state->isAuthority) {                                                                  \
+            /* Forward any AC_HIT the engine flagged on the previous       */                      \
+            /* frame's collision pass, then re-register our AC collider so */                      \
+            /* the *next* collision pass can land another hit. Suppress    */                      \
+            /* the actor's own update last so its in-update SetAC is the   */                      \
+            /* only path that's skipped, not our manual one above.         */                      \
             EnemySync_HandleNonAuthorityHit(actor);                                                 \
+            EnemySync_RegisterAC(actor);                                                            \
             *should = false;                                                                        \
         }                                                                                           \
     });                                                                                             \

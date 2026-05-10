@@ -159,9 +159,11 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
         return;
     }
 
-    // ~15Hz at 60fps. Stalchild AI is deliberate enough that this is plenty.
+    // ~30Hz at 60fps. Receivers LERP between consecutive snapshots in
+    // EnemySync_TickNonAuthorityLerp so visible motion stays smooth at
+    // 60fps render rate even though we only push twice per tick.
     enemySyncTickCounter++;
-    if ((enemySyncTickCounter & 0x3) != 0) {
+    if ((enemySyncTickCounter & 0x1) != 0) {
         return;
     }
 
@@ -323,6 +325,109 @@ void Anchor::EnemySync_OnActorDestroy(Actor* actor) {
     }
     state->enemyNetId = 0;
     state->isSynced = false;
+}
+
+// Non-authority side: walks every synced enemy in the current scene and
+// LERPs world.pos / shape.rot from the last sample toward the most recent
+// ENEMY_UPDATE target. Without this the actor snaps once per packet at
+// 30Hz, which reads as a stutter against 60fps render. Health, velocity,
+// and per-family AI fields are still applied directly in
+// HandlePacket_EnemyUpdate; we only smooth pose here.
+void Anchor::EnemySync_TickNonAuthorityLerp() {
+    if (!IsSaveLoaded() || !isConnected) {
+        return;
+    }
+    if (IsAuthorityForCurrentScene()) {
+        return;
+    }
+
+    Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
+    while (actor != NULL) {
+        if (IsSyncableEnemy(actor)) {
+            EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
+            if (state != nullptr && state->isSynced && !state->isAuthority && state->lerpInterval > 0) {
+                if (state->lerpFrame < state->lerpInterval) {
+                    state->lerpFrame++;
+                }
+                float alpha = (float)state->lerpFrame / (float)state->lerpInterval;
+                if (alpha > 1.0f) {
+                    alpha = 1.0f;
+                }
+                actor->world.pos.x = state->prevPosX + (state->targetPosX - state->prevPosX) * alpha;
+                actor->world.pos.y = state->prevPosY + (state->targetPosY - state->prevPosY) * alpha;
+                actor->world.pos.z = state->prevPosZ + (state->targetPosZ - state->prevPosZ) * alpha;
+                // Shortest-path s16 LERP: cast the delta to s16 so the
+                // wraparound across +/- 0x8000 stays correct (e.g. going
+                // from 0x7FFF to 0x8001 takes 2 steps, not 0xFFFE).
+                int16_t dRotX = (int16_t)(state->targetRotX - state->prevRotX);
+                int16_t dRotY = (int16_t)(state->targetRotY - state->prevRotY);
+                int16_t dRotZ = (int16_t)(state->targetRotZ - state->prevRotZ);
+                actor->shape.rot.x = state->prevRotX + (int16_t)(dRotX * alpha);
+                actor->shape.rot.y = state->prevRotY + (int16_t)(dRotY * alpha);
+                actor->shape.rot.z = state->prevRotZ + (int16_t)(dRotZ * alpha);
+                actor->world.rot.y = actor->shape.rot.y;
+            }
+        }
+        actor = actor->next;
+    }
+}
+
+// Non-authority: the per-family AC collider has to be (re)registered with
+// the collision check context every frame so the engine's
+// CollisionCheck_AC pass actually tests Player's sword AT against this
+// enemy. Vanilla actors do this from inside their own update fn (see
+// e.g. z_en_skb.c:520), but we suppress that update on non-authority --
+// without re-registering here, AC_HIT would never get set, the local
+// damage forward in EnemySync_HandleNonAuthorityHit would always see
+// damage==0, and the authority side would never learn about the hit.
+void Anchor::EnemySync_RegisterAC(Actor* actor) {
+    if (actor == nullptr || gPlayState == nullptr) {
+        return;
+    }
+    switch (actor->id) {
+        case ACTOR_EN_SKB: {
+            EnSkb* a = reinterpret_cast<EnSkb*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            break;
+        }
+        case ACTOR_EN_DEKUBABA: {
+            EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            break;
+        }
+        case ACTOR_EN_KAREBABA: {
+            EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->headCollider.base);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->bodyCollider.base);
+            break;
+        }
+        case ACTOR_EN_DEKUNUTS: {
+            EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            break;
+        }
+        case ACTOR_EN_GOMA: {
+            EnGoma* a = reinterpret_cast<EnGoma*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCyl1.base);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCyl2.base);
+            break;
+        }
+        case ACTOR_EN_ST: {
+            EnSt* a = reinterpret_cast<EnSt*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colSph.base);
+            for (int i = 0; i < 6; i++) {
+                CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCylinder[i].base);
+            }
+            break;
+        }
+        case ACTOR_EN_SW: {
+            EnSw* a = reinterpret_cast<EnSw*>(actor);
+            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 void Anchor::EnemySync_OnEnemyDefeat(Actor* actor) {
