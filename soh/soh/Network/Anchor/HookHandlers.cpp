@@ -75,6 +75,7 @@ void Anchor::RegisterHooks() {
         // both must be wiped when the scene's actor list is rebuilt.
         liftedRocksBroadcast.clear();
         rockItemDropsBroadcast.clear();
+        enemyItemDropsBroadcast.clear();
         itemActorToId.clear();
         itemIdToActor.clear();
         // World-event sync per-actor caches: pointers from the previous
@@ -164,6 +165,7 @@ void Anchor::RegisterHooks() {
         ProcessIncomingPacketQueue();
         EnemySync_TickAuthorityBroadcast();
         EnemySync_TickNonAuthorityLerp();
+        EnemySync_TrackEnemyDrops();
 
         // Shared-rupees poll. We avoid hooking Rupees_ChangeBy directly
         // and instead diff (rupees + accumulator) once per frame so we

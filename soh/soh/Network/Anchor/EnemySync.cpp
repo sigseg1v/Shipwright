@@ -380,6 +380,21 @@ void Anchor::EnemySync_TickNonAuthorityLerp() {
 // without re-registering here, AC_HIT would never get set, the local
 // damage forward in EnemySync_HandleNonAuthorityHit would always see
 // damage==0, and the authority side would never learn about the hit.
+//
+// We also force AC_ON and clear AC_HARD on every collider before
+// registering. The actor's update fn is what normally toggles those
+// flags between hittable and "block all damage" states (e.g. Deku Baba
+// in its retracted Wait state sets AC_HARD so swords bounce off), but
+// since we suppress the update on non-authority, the flags would stay
+// stuck at whatever the engine seeded them with on init -- which for
+// Deku Baba means AC_HARD always, so the player can never land a hit
+// to forward to authority. The authority side runs vanilla AI so its
+// own collider state stays correct; we only diverge here on peers.
+static inline void RegisterCollider(Collider* base) {
+    base->acFlags = (base->acFlags | AC_ON) & ~AC_HARD;
+    CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, base);
+}
+
 void Anchor::EnemySync_RegisterAC(Actor* actor) {
     if (actor == nullptr || gPlayState == nullptr) {
         return;
@@ -387,46 +402,113 @@ void Anchor::EnemySync_RegisterAC(Actor* actor) {
     switch (actor->id) {
         case ACTOR_EN_SKB: {
             EnSkb* a = reinterpret_cast<EnSkb*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            RegisterCollider(&a->collider.base);
             break;
         }
         case ACTOR_EN_DEKUBABA: {
             EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            RegisterCollider(&a->collider.base);
             break;
         }
         case ACTOR_EN_KAREBABA: {
             EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->headCollider.base);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->bodyCollider.base);
+            RegisterCollider(&a->headCollider.base);
+            RegisterCollider(&a->bodyCollider.base);
             break;
         }
         case ACTOR_EN_DEKUNUTS: {
             EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            RegisterCollider(&a->collider.base);
             break;
         }
         case ACTOR_EN_GOMA: {
             EnGoma* a = reinterpret_cast<EnGoma*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCyl1.base);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCyl2.base);
+            RegisterCollider(&a->colCyl1.base);
+            RegisterCollider(&a->colCyl2.base);
             break;
         }
         case ACTOR_EN_ST: {
             EnSt* a = reinterpret_cast<EnSt*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colSph.base);
+            RegisterCollider(&a->colSph.base);
             for (int i = 0; i < 6; i++) {
-                CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->colCylinder[i].base);
+                RegisterCollider(&a->colCylinder[i].base);
             }
             break;
         }
         case ACTOR_EN_SW: {
             EnSw* a = reinterpret_cast<EnSw*>(actor);
-            CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, &a->collider.base);
+            RegisterCollider(&a->collider.base);
             break;
         }
         default:
             break;
+    }
+}
+
+// Authority side: scan ACTORCAT_MISC for new EnItem00 actors that were
+// spawned near a synced enemy and broadcast them as ITEM_SPAWN so peers
+// see the same drop. Synced enemies (Deku Baba, Stalchild, etc.) call
+// Item_DropCollectibleRandom from inside their dying action funcs --
+// that fn runs only on authority because peers have ShouldActorUpdate
+// suppressed, so without this rebroadcast peers never see the dropped
+// stick / nut / heart.
+//
+// Proximity check: the dying enemy is still in ACTORCAT_ENEMY for the
+// frames between drop and Actor_Kill (death anim plays out first), so
+// we just check distance against any live synced enemy. 80-unit radius
+// is generous enough to cover Deku Baba's drop offset (it spawns the
+// item slightly above its body) without bleeding into unrelated drops.
+void Anchor::EnemySync_TrackEnemyDrops() {
+    if (!IsSaveLoaded() || !isConnected) {
+        return;
+    }
+    if (!IsAuthorityForCurrentScene()) {
+        return;
+    }
+
+    Actor* item = gPlayState->actorCtx.actorLists[ACTORCAT_MISC].head;
+    while (item != NULL) {
+        Actor* nextItem = item->next;
+        if (item->id != ACTOR_EN_ITEM00 ||
+            enemyItemDropsBroadcast.count(item) ||
+            itemActorToId.count(item)) {
+            item = nextItem;
+            continue;
+        }
+
+        // Gate on hp == 0 (dying or dead) so we don't accidentally replicate
+        // a grass-cut rupee that happened next to a live synced enemy. The
+        // synced enemy's death anim runs across many frames between hp
+        // hitting 0 and Actor_Kill removing it from the list, which is the
+        // window during which the drop spawns.
+        bool nearSyncedEnemy = false;
+        Actor* enemy = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
+        while (enemy != NULL) {
+            if (IsSyncableEnemy(enemy) && enemy->colChkInfo.health == 0) {
+                EnemyNetState* st = ObjectExtension::GetInstance().Get<EnemyNetState>(enemy);
+                if (st != nullptr && st->isSynced && st->enemyNetId != 0) {
+                    f32 dx = item->world.pos.x - enemy->world.pos.x;
+                    f32 dy = item->world.pos.y - enemy->world.pos.y;
+                    f32 dz = item->world.pos.z - enemy->world.pos.z;
+                    if (dx * dx + dy * dy + dz * dz < 80.0f * 80.0f) {
+                        nearSyncedEnemy = true;
+                        break;
+                    }
+                }
+            }
+            enemy = enemy->next;
+        }
+
+        if (nearSyncedEnemy) {
+            enemyItemDropsBroadcast.insert(item);
+            uint64_t itemId = ((uint64_t)ownClientId << 32) | (++itemSpawnSeq);
+            itemActorToId[item] = itemId;
+            itemIdToActor[itemId] = item;
+            SendPacket_ItemSpawn(gPlayState->sceneNum, itemId, item->world.pos.x, item->world.pos.y,
+                                 item->world.pos.z, (s16)item->params);
+        }
+
+        item = nextItem;
     }
 }
 

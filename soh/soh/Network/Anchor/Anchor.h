@@ -308,6 +308,11 @@ class Anchor : public Network {
     // ITEM_SPAWN, to dedup re-scans. Pointers are stable for the actor's
     // lifetime; cleared on scene transition.
     std::set<Actor*> rockItemDropsBroadcast;
+    // Same shape, but for drops produced by synced enemies (Deku Baba
+    // dropping a stick on death, etc.). The authority side scans for
+    // these every frame in EnemySync_TrackEnemyDrops; this set keeps us
+    // from re-broadcasting the same EnItem00 on subsequent frames.
+    std::set<Actor*> enemyItemDropsBroadcast;
 
     // Bidirectional mapping for synced EnItem00 collection. Both sender
     // and receiver bind their local EnItem00 actor pointer to the same
@@ -386,6 +391,7 @@ class Anchor : public Network {
     void EnemySync_OnSceneSpawnActors();
     void EnemySync_TickAuthorityBroadcast();
     void EnemySync_TickNonAuthorityLerp();
+    void EnemySync_TrackEnemyDrops();
     void EnemySync_HandleNonAuthorityHit(Actor* actor);
     void EnemySync_RegisterAC(Actor* actor);
     void EnemySync_OnEnemyDefeat(Actor* actor);
