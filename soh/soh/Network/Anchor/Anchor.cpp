@@ -28,6 +28,8 @@ void Anchor::Disable() {
     sceneAuthorities.clear();
     destroyedFoliage.clear();
     destroyedRocks.clear();
+    lastKanbanPartFlags.clear();
+    lastTorchLit.clear();
     lastSyncedRupees = 0;
     receivedFirstRupeesSet = false;
     isApplyingRemoteRupees = false;
@@ -122,10 +124,11 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     bool isRockPacket = packetType == ROCK_DESTROY || packetType == ROCK_SNAPSHOT ||
                         packetType == ROCK_LIFT || packetType == ITEM_SPAWN ||
                         packetType == ITEM_COLLECT;
+    bool isWorldEventPacket = packetType == SIGN_CUT || packetType == TORCH_STATE;
 
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
     if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
-        !isEnemySyncPacket && !isRupeesPacket && !isFoliagePacket && !isRockPacket) {
+        !isEnemySyncPacket && !isRupeesPacket && !isFoliagePacket && !isRockPacket && !isWorldEventPacket) {
         if (payload.contains("clientId")) {
             uint32_t clientId = payload["clientId"].get<uint32_t>();
             if (clients.contains(clientId) && clients[clientId].clientVersion != clientVersion) {
@@ -161,6 +164,12 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
     if (isRockPacket && payload.contains("clientId")) {
         uint32_t clientId = payload["clientId"].get<uint32_t>();
         if (!ClientHasFeature(clientId, FEATURE_ROCK_SYNC)) {
+            return;
+        }
+    }
+    if (isWorldEventPacket && payload.contains("clientId")) {
+        uint32_t clientId = payload["clientId"].get<uint32_t>();
+        if (!ClientHasFeature(clientId, FEATURE_WORLD_EVENT_SYNC)) {
             return;
         }
     }
@@ -261,6 +270,10 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_ItemSpawn(payload);
             else if (packetType == ITEM_COLLECT)
                 HandlePacket_ItemCollect(payload);
+            else if (packetType == SIGN_CUT)
+                HandlePacket_SignCut(payload);
+            else if (packetType == TORCH_STATE)
+                HandlePacket_TorchState(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());

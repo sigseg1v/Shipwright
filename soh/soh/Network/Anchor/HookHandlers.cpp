@@ -31,6 +31,8 @@ extern "C" {
 #include "src/overlays/actors/ovl_Item_B_Heart/z_item_b_heart.h"
 #include "src/overlays/actors/ovl_Obj_Bombiwa/z_obj_bombiwa.h"
 #include "src/overlays/actors/ovl_Obj_Hamishi/z_obj_hamishi.h"
+#include "src/overlays/actors/ovl_En_Kanban/z_en_kanban.h"
+#include "src/overlays/actors/ovl_Obj_Syokudai/z_obj_syokudai.h"
 #include "src/overlays/actors/ovl_Bg_Hidan_Dalm/z_bg_hidan_dalm.h"
 #include "src/overlays/actors/ovl_Bg_Hidan_Kowarerukabe/z_bg_hidan_kowarerukabe.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
@@ -75,6 +77,10 @@ void Anchor::RegisterHooks() {
         rockItemDropsBroadcast.clear();
         itemActorToId.clear();
         itemIdToActor.clear();
+        // World-event sync per-actor caches: pointers from the previous
+        // scene aren't valid in the new actor list, so wipe them.
+        lastKanbanPartFlags.clear();
+        lastTorchLit.clear();
         // Same reasoning for the enemy net-id -> Actor* table: stale
         // pointers from the previous scene must not survive across
         // transitions. Cleared here (before any deferred enumeration
@@ -304,6 +310,56 @@ void Anchor::RegisterHooks() {
         if (i2a != itemIdToActor.end()) {
             itemIdToActor.erase(i2a);
         }
+    });
+
+    // Sign chop sync. EnKanban_Update masks partFlags whenever a sword
+    // hit lands (z_en_kanban.c). We diff partFlags against the previous
+    // tick: a strict decrease that doesn't bottom out at 0xFFFF (the
+    // engine's far-distance respawn) means the local player just chopped
+    // and we broadcast the cutType. HandlePacket_SignCut updates the
+    // cache before applying so this detector won't see remote-applied
+    // drops as fresh local cuts.
+    COND_ID_HOOK(OnActorUpdate, ACTOR_EN_KANBAN, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        if (actor->params == ENKANBAN_PIECE) return;
+        EnKanban* kanban = (EnKanban*)actor;
+        u16 curr = kanban->partFlags;
+        auto it = lastKanbanPartFlags.find(actor);
+        if (it == lastKanbanPartFlags.end()) {
+            lastKanbanPartFlags[actor] = curr;
+            return;
+        }
+        u16 prev = it->second;
+        if (curr < prev && curr != 0xFFFF && prev != 0xFFFF) {
+            // Engine just dropped one or more part flags as the result of
+            // a local sword swing. cutType holds the cut variant the
+            // engine just chose for that hit.
+            SendPacket_SignCut(gPlayState->sceneNum, MakeKanbanId(actor), kanban->cutType);
+        }
+        lastKanbanPartFlags[actor] = curr;
+    });
+
+    // Torch lighting sync. ObjSyokudai_Update mutates litTimer in
+    // multiple paths (player stick/arrow ignition, water extinguish,
+    // switch-flag follow, per-frame countdown). We only care about the
+    // 0 <-> nonzero edge so peers see ignite/extinguish without flooding
+    // packets every frame as the timer ticks down.
+    COND_ID_HOOK(OnActorUpdate, ACTOR_OBJ_SYOKUDAI, isConnected, [&](void* refActor) {
+        Actor* actor = (Actor*)refActor;
+        if (gPlayState == nullptr || !IsSaveLoaded()) return;
+        ObjSyokudai* torch = (ObjSyokudai*)actor;
+        bool isLit = (torch->litTimer != 0);
+        auto it = lastTorchLit.find(actor);
+        if (it == lastTorchLit.end()) {
+            lastTorchLit[actor] = isLit;
+            return;
+        }
+        bool wasLit = it->second;
+        if (isLit != wasLit) {
+            SendPacket_TorchState(gPlayState->sceneNum, MakeTorchId(actor), torch->litTimer);
+        }
+        lastTorchLit[actor] = isLit;
     });
 
     // Suppress AI tick on non-authority for synced enemies. The hook returns

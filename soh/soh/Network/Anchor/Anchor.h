@@ -141,6 +141,8 @@ class Anchor : public Network {
     void HandlePacket_RockLift(nlohmann::json payload);
     void HandlePacket_ItemSpawn(nlohmann::json payload);
     void HandlePacket_ItemCollect(nlohmann::json payload);
+    void HandlePacket_SignCut(nlohmann::json payload);
+    void HandlePacket_TorchState(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -154,8 +156,10 @@ class Anchor : public Network {
     inline static const std::string FEATURE_SHARED_RUPEES = "shared_rupees_v1";
     inline static const std::string FEATURE_FOLIAGE_SYNC = "foliage_sync_v1";
     inline static const std::string FEATURE_ROCK_SYNC = "rock_sync_v1";
+    inline static const std::string FEATURE_WORLD_EVENT_SYNC = "world_event_sync_v1";
     inline static const std::vector<std::string> selfFeatures = {
-        FEATURE_ENEMY_SYNC, FEATURE_SHARED_RUPEES, FEATURE_FOLIAGE_SYNC, FEATURE_ROCK_SYNC,
+        FEATURE_ENEMY_SYNC,  FEATURE_SHARED_RUPEES,    FEATURE_FOLIAGE_SYNC,
+        FEATURE_ROCK_SYNC,   FEATURE_WORLD_EVENT_SYNC,
     };
     bool ClientHasFeature(uint32_t clientId, const std::string& feature);
 
@@ -252,6 +256,18 @@ class Anchor : public Network {
     // ephemeral (despawn naturally on their own ~13s timer).
     inline static const std::string ITEM_COLLECT = "ITEM_COLLECT";
 
+    // World-event sync packet types (FEATURE_WORLD_EVENT_SYNC). Stateless
+    // server relays for one-shot per-actor state changes that don't fit
+    // the destroy-set model. SIGN_CUT broadcasts a single chop on an
+    // ACTOR_EN_KANBAN (peers apply the cut mask to their local sign).
+    // TORCH_STATE broadcasts a litTimer transition on an ACTOR_OBJ_SYOKUDAI
+    // (peers set their local torch's litTimer). No snapshot: late joiners
+    // miss in-progress state until the next event. Switch-flag-driven
+    // persistence (lit-by-switch or chopped-via-flag) still flows through
+    // SET_FLAG/UNSET_FLAG.
+    inline static const std::string SIGN_CUT = "SIGN_CUT";
+    inline static const std::string TORCH_STATE = "TORCH_STATE";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
     // Server-authoritative per-scene authority. Populated/updated by
@@ -304,6 +320,17 @@ class Anchor : public Network {
     std::map<Actor*, uint64_t> itemActorToId;
     std::map<uint64_t, Actor*> itemIdToActor;
     uint64_t itemSpawnSeq = 0;
+
+    // Per-scene caches keyed by live Actor* pointers; used by the per-frame
+    // OnActorUpdate hooks to detect when a sign was just chopped or a
+    // torch's lit state just transitioned. Pointers are only meaningful
+    // for the current scene visit, so both are wiped on scene transition.
+    // For signs we cache the previous frame's partFlags so we can spot a
+    // mask reduction (chop). For torches we cache whether the torch was
+    // lit (litTimer != 0) so we can spot ignite/extinguish edges without
+    // firing a packet on every per-frame tick-down.
+    std::map<Actor*, u16> lastKanbanPartFlags;
+    std::map<Actor*, bool> lastTorchLit;
     RoomState roomState;
 
     void Enable();
@@ -347,6 +374,10 @@ class Anchor : public Network {
     void SendPacket_ItemSpawn(s16 sceneNum, uint64_t itemId, f32 x, f32 y, f32 z, s16 params);
     void SendPacket_ItemCollect(uint64_t itemId);
     std::string MakeRockId(const Actor* actor);
+    void SendPacket_SignCut(s16 sceneNum, const std::string& signId, u8 cutType);
+    void SendPacket_TorchState(s16 sceneNum, const std::string& torchId, s16 litTimer);
+    std::string MakeKanbanId(const Actor* actor);
+    std::string MakeTorchId(const Actor* actor);
 
     // Enemy sync helpers (Phase 2 PoC)
     bool IsAuthorityForCurrentScene();
@@ -372,10 +403,10 @@ class Anchor : public Network {
     // server has had a chance to tell us who is authority for the
     // scene we just entered. If we ran enemy enumeration at that
     // moment, two clients entering the same scene would each default
-    // to "I'm authority by default" and double-broadcast initial
-    // spawns. Instead we record the scene number here and run
-    // EnemySync_OnSceneSpawnActors once SCENE_AUTHORITY for that
-    // scene arrives. SCENE_ID_MAX means no enumeration is pending.
+    // to "I'm authority" and double-broadcast initial spawns. Instead
+    // we record the scene number here and run EnemySync_OnSceneSpawnActors
+    // once SCENE_AUTHORITY for that scene arrives. SCENE_ID_MAX means
+    // no enumeration is pending.
     s16 pendingEnemyEnumerationScene = SCENE_ID_MAX;
 };
 
