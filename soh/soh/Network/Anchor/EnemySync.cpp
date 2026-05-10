@@ -109,10 +109,6 @@ void Anchor::EnemySync_OnSceneSpawnActors() {
         return;
     }
 
-    // Reset per-scene network-id table; old IDs do not survive scene
-    // transitions because the Actor* pointers don't either.
-    enemyNetIdToActor.clear();
-
     bool authority = IsAuthorityForCurrentScene();
 
     Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
@@ -121,18 +117,29 @@ void Anchor::EnemySync_OnSceneSpawnActors() {
 
         if (IsSyncableEnemy(actor)) {
             EnemyNetState* state = GetOrCreateNetState(actor);
+
+            // Already accounted for: either we broadcast this actor on
+            // a previous pass (authority side) or it was instantiated
+            // locally from a remote ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT
+            // (non-authority side). Skip it; touching state would
+            // either re-broadcast a duplicate or kill a remote-owned
+            // actor we just spawned.
+            if (state->enemyNetId != 0) {
+                actor = next;
+                continue;
+            }
+
             state->isSynced = true;
             state->isAuthority = authority;
 
             if (authority) {
-                if (state->enemyNetId == 0) {
-                    state->enemyNetId = MintEnemyNetId();
-                }
+                state->enemyNetId = MintEnemyNetId();
                 enemyNetIdToActor[state->enemyNetId] = actor;
                 SendPacket_EnemySpawn(actor, state->enemyNetId);
             } else {
                 // Non-authority: kill the engine-spawned local copy. The
-                // authority's ENEMY_SPAWN broadcast will recreate it.
+                // authority's ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT will
+                // recreate it.
                 Actor_Kill(actor);
             }
         }

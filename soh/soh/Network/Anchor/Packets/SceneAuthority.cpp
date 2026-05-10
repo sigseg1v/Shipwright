@@ -1,9 +1,12 @@
 #include "soh/Network/Anchor/Anchor.h"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
+#include "soh/OTRGlobals.h"
 
 extern "C" {
 #include "macros.h"
+#include "variables.h"
+extern PlayState* gPlayState;
 }
 
 // SCENE_AUTHORITY
@@ -34,5 +37,17 @@ void Anchor::HandlePacket_SceneAuthority(nlohmann::json payload) {
         sceneAuthorities.erase(sceneNum);
     } else {
         sceneAuthorities[sceneNum] = authorityClientId;
+    }
+
+    // If we deferred enemy enumeration on scene load waiting for the
+    // server's authority decision, run it now. The enumeration picks
+    // up the just-set sceneAuthorities entry via
+    // IsAuthorityForCurrentScene and either broadcasts ENEMY_SPAWN
+    // for our local copies (we're authority) or kills them so the
+    // authority's snapshot can replace them (we're not).
+    if (pendingEnemyEnumerationScene == sceneNum && IsSaveLoaded() &&
+        gPlayState != nullptr && gPlayState->sceneNum == sceneNum) {
+        pendingEnemyEnumerationScene = SCENE_ID_MAX;
+        EnemySync_OnSceneSpawnActors();
     }
 }

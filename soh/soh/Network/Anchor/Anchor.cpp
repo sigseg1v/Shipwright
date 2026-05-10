@@ -243,6 +243,8 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_EnemyFullSnapshot(payload);
             else if (packetType == SCENE_AUTHORITY)
                 HandlePacket_SceneAuthority(payload);
+            else if (packetType == PEER_ENTERED_SCENE)
+                HandlePacket_PeerEnteredScene(payload);
             else if (packetType == RUPEES_SET)
                 HandlePacket_RupeesSet(payload);
             else if (packetType == FOLIAGE_DESTROY)

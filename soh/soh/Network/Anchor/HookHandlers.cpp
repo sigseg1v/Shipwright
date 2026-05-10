@@ -75,27 +75,39 @@ void Anchor::RegisterHooks() {
         rockItemDropsBroadcast.clear();
         itemActorToId.clear();
         itemIdToActor.clear();
+        // Same reasoning for the enemy net-id -> Actor* table: stale
+        // pointers from the previous scene must not survive across
+        // transitions. Cleared here (before any deferred enumeration
+        // or remote ENEMY_SPAWN handling) so both authority and non-
+        // authority paths start the new scene with an empty table.
+        enemyNetIdToActor.clear();
 
         if (IsSaveLoaded()) {
             RefreshClientActors();
-            EnemySync_OnSceneSpawnActors();
 
-            // Late-join: if we're authority for this scene and any peer is
-            // already in our scene, send them a full enemy snapshot so they
-            // can spawn the live enemies. (For peers entering the scene, the
-            // SendPacket_UpdateClientState above announces our sceneNum --
-            // but we don't have an inverse trigger when *they* arrive. Phase
-            // 2 leaves that as a known gap; non-authority newcomers will pick
-            // up the next ENEMY_UPDATE tick and miss any enemies they didn't
-            // see spawn.)
-            if (IsAuthorityForCurrentScene()) {
-                for (auto& [clientId, client] : clients) {
-                    if (!client.self && client.online && client.isSaveLoaded &&
-                        client.sceneNum == gPlayState->sceneNum) {
-                        SendPacket_EnemyFullSnapshot(clientId);
-                    }
-                }
+            // Defer enemy enumeration until we have a confirmed
+            // authority for this scene from the server. If we ran it
+            // immediately, two clients entering the same scene at the
+            // same time would both fall back to "I'm authority by
+            // default" (because GetSceneAuthorityClientId returns 0
+            // before SCENE_AUTHORITY arrives) and both would broadcast
+            // ENEMY_SPAWN, leaving every client with N copies of every
+            // enemy. The server now always sends SCENE_AUTHORITY on
+            // entry; HandlePacket_SceneAuthority kicks the deferred
+            // enumeration once it lands. The "already known"
+            // shortcut keeps re-entries (warps within a session) from
+            // paying the round-trip when the answer is already cached.
+            if (sceneAuthorities.find(gPlayState->sceneNum) != sceneAuthorities.end()) {
+                EnemySync_OnSceneSpawnActors();
+                pendingEnemyEnumerationScene = SCENE_ID_MAX;
+            } else {
+                pendingEnemyEnumerationScene = gPlayState->sceneNum;
             }
+            // Note: late-join snapshot push is now driven by the
+            // server's PEER_ENTERED_SCENE notification (handled in
+            // PeerEnteredScene.cpp) rather than walking the local
+            // clients map here, since that map can lag by a tick when
+            // the joiner is the one transitioning.
         }
     });
 

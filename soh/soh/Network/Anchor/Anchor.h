@@ -106,6 +106,7 @@ class Anchor : public Network {
 
     void HandlePacket_AllClientState(nlohmann::json payload);
     void HandlePacket_SceneAuthority(nlohmann::json payload);
+    void HandlePacket_PeerEnteredScene(nlohmann::json payload);
     void HandlePacket_EnemySpawn(nlohmann::json payload);
     void HandlePacket_EnemyUpdate(nlohmann::json payload);
     void HandlePacket_EnemyDamage(nlohmann::json payload);
@@ -196,6 +197,15 @@ class Anchor : public Network {
     // simply never send this packet, in which case GetSceneAuthorityClientId
     // returns 0 and clients fall back to their own behavior.
     inline static const std::string SCENE_AUTHORITY = "SCENE_AUTHORITY";
+
+    // Server -> existing scene authority. Sent when another client
+    // transitions into a scene that already has an authority. The
+    // recipient (the authority) responds by pushing an
+    // ENEMY_FULL_SNAPSHOT to the named peer so the new arrival can
+    // spawn live enemies without waiting on the next ENEMY_UPDATE
+    // tick. Older anchor servers never emit this; clients without the
+    // handler simply skip it.
+    inline static const std::string PEER_ENTERED_SCENE = "PEER_ENTERED_SCENE";
 
     // Shared-rupees packet types (FEATURE_SHARED_RUPEES). The client
     // sends UPDATE_RUPEES with a signed delta whenever its local
@@ -357,6 +367,16 @@ class Anchor : public Network {
     uint32_t enemySyncTickCounter = 0;
     // network-id -> Actor* (only valid while actor is alive in current scene)
     std::map<uint32_t, Actor*> enemyNetIdToActor;
+
+    // OnSceneSpawnActors fires immediately on scene load, before the
+    // server has had a chance to tell us who is authority for the
+    // scene we just entered. If we ran enemy enumeration at that
+    // moment, two clients entering the same scene would each default
+    // to "I'm authority by default" and double-broadcast initial
+    // spawns. Instead we record the scene number here and run
+    // EnemySync_OnSceneSpawnActors once SCENE_AUTHORITY for that
+    // scene arrives. SCENE_ID_MAX means no enumeration is pending.
+    s16 pendingEnemyEnumerationScene = SCENE_ID_MAX;
 };
 
 typedef enum {
