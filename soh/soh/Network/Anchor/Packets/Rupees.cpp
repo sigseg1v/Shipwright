@@ -19,12 +19,13 @@ extern SaveContext gSaveContext;
 // signed delta to the server, which folds it into the room counter
 // and rebroadcasts the new authoritative total to everyone.
 //
-// On first contact (receivedFirstRupeesSet still false), we do NOT
-// overwrite the local wallet -- otherwise we'd reset a player's save-
-// loaded balance to whatever the room already had and lose rupees.
-// Instead we record the server total as our "last synced" baseline,
-// which makes the per-frame poll in HookHandlers.cpp see (local -
-// baseline) as a delta and donate the difference back to the room.
+// Seeding works via an explicit ping on connect / save load: we send
+// SendPacket_UpdateRupees(0, wallet) from OnConnected and OnLoadGame.
+// The server applies that to the room (delta=0 is a no-op for an
+// already-initialized room; for an empty room the seed=wallet
+// initializes it from the local save) and broadcasts RUPEES_SET back.
+// The originator either no-ops (currentLocal == total) or reconciles
+// any difference into the accumulator.
 
 void Anchor::SendPacket_UpdateRupees(s32 delta, s32 seed) {
     nlohmann::json payload;
@@ -40,32 +41,25 @@ void Anchor::HandlePacket_RupeesSet(nlohmann::json payload) {
     }
     s32 total = payload["total"].get<s32>();
 
-    if (!receivedFirstRupeesSet) {
-        // First snapshot: just record where the server stands. The
-        // local wallet keeps its save-loaded value; the next polling
-        // tick will surface (local - total) as a delta and seed the
-        // room from this client's save.
-        lastSyncedRupees = total;
-        receivedFirstRupeesSet = true;
-        return;
-    }
-
     if (!IsSaveLoaded()) {
         // Defer applying until the save is up so we don't write into
         // gSaveContext fields that are about to be clobbered by a
-        // file load.
+        // file load. OnLoadGame will fire its own ping post-load and
+        // pick up the room's authoritative total then.
         lastSyncedRupees = total;
+        receivedFirstRupeesSet = true;
         return;
     }
 
     s32 currentLocal = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
     if (currentLocal == total) {
         // RUPEES_SET that matches what we already have locally -- this
-        // is the echo of a delta we just sent up. Touching the
-        // accumulator here would zero the engine's in-progress count-up
-        // and silence the rupee pickup jingle, so leave gSaveContext
-        // alone and just refresh the baseline.
+        // is the echo of a delta or seed-ping we just sent up.
+        // Touching the accumulator here would zero the engine's
+        // in-progress count-up and silence the rupee pickup jingle, so
+        // leave gSaveContext alone and just refresh the baseline.
         lastSyncedRupees = total;
+        receivedFirstRupeesSet = true;
         return;
     }
 
@@ -84,4 +78,5 @@ void Anchor::HandlePacket_RupeesSet(nlohmann::json payload) {
     isApplyingRemoteRupees = false;
 
     lastSyncedRupees = total;
+    receivedFirstRupeesSet = true;
 }

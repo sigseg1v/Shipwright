@@ -40,6 +40,16 @@ void Anchor::OnConnected() {
 
     if (IsSaveLoaded()) {
         SendPacket_RequestTeamState();
+        // Ping the room with our current wallet so the server either
+        // seeds an empty room from us or replies with the current
+        // authoritative total (which HandlePacket_RupeesSet reconciles
+        // into the local wallet via the accumulator). Without this,
+        // joining mid-session with a save already loaded would never
+        // surface a sync until someone happened to pick up or spend a
+        // rupee.
+        s32 wallet = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+        lastSyncedRupees = wallet;
+        SendPacket_UpdateRupees(0, wallet);
     }
 }
 

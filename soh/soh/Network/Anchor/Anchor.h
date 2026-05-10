@@ -254,10 +254,10 @@ class Anchor : public Network {
     // server; the per-frame poll in HookHandlers sends a delta when
     // local total drifts. isApplyingRemoteRupees suppresses recursion
     // when we apply a server RUPEES_SET. receivedFirstRupeesSet gates
-    // whether we overwrite the local wallet on receive: the very
-    // first RUPEES_SET seeds lastSyncedRupees so the first delta we
-    // send carries our save's full balance into the room without
-    // resetting our wallet to 0.
+    // the per-frame poll so we don't fire a bogus delta against the
+    // initial 0 baseline before we've heard anything from the server;
+    // the explicit ping in OnConnected/OnLoadGame is what actually
+    // seeds an empty room from our wallet.
     s32 lastSyncedRupees = 0;
     bool receivedFirstRupeesSet = false;
     bool isApplyingRemoteRupees = false;

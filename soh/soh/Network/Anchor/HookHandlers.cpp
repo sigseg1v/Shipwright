@@ -342,7 +342,16 @@ void Anchor::RegisterHooks() {
         // Reset the rupees-poll baseline so the first post-load delta
         // compares against the just-loaded wallet, not whatever the
         // value was on the file-select / soft-reset path.
-        lastSyncedRupees = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+        s32 wallet = (s32)gSaveContext.rupees + (s32)gSaveContext.rupeeAccumulator;
+        lastSyncedRupees = wallet;
+        // Ping the room with the just-loaded wallet so it either seeds
+        // an empty room from us or replies with the room's
+        // authoritative total (which HandlePacket_RupeesSet folds back
+        // into our wallet via the accumulator). Without this, two
+        // players who load saves at different times can sit on
+        // mismatched totals indefinitely -- the per-frame poll only
+        // fires when the wallet *changes*.
+        SendPacket_UpdateRupees(0, wallet);
     });
 
     COND_HOOK(OnSaveFile, isConnected, [&](s16 fileNum, int sectionID) {
