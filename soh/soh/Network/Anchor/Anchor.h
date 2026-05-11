@@ -441,7 +441,6 @@ class Anchor : public Network {
     uint32_t MintEnemyNetId();
     void EnemySync_OnSceneSpawnActors();
     void EnemySync_TickAuthorityBroadcast();
-    void EnemySync_TickNonAuthorityLerp();
     void EnemySync_TrackEnemyDrops();
     void EnemySync_HandleNonAuthorityHit(Actor* actor);
     void EnemySync_RegisterAC(Actor* actor);

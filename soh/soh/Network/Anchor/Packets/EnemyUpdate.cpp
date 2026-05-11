@@ -17,10 +17,14 @@ extern PlayState* gPlayState;
 /**
  * ENEMY_UPDATE
  *
- * Authority -> peers, ~15Hz, room-broadcast. Carries a batch of all live
+ * Authority -> peers, 60Hz, room-broadcast. Carries a batch of all live
  * synced enemies in the current scene with their pos/rot/vel/hp + per-family
- * AI state extras. Non-authority clients write back into the actor struct
- * and reset the action func / animation as needed.
+ * AI state extras.
+ *
+ * Receiver mirrors PLAYER_UPDATE's pattern: assign pos/rot directly to the
+ * actor every packet, no prev/target interpolation buffer. Authority sends
+ * once per game tick so the receive cadence already matches the render
+ * cadence, the same way DummyPlayer_Update consumes PLAYER_UPDATE.
  *
  * Send side lives in EnemySync.cpp::EnemySync_TickAuthorityBroadcast.
  */
@@ -54,42 +58,9 @@ void Anchor::HandlePacket_EnemyUpdate(nlohmann::json payload) {
         Vec3f pos = e.value("pos", Vec3f{ 0, 0, 0 });
         Vec3s rot = e.value("rot", Vec3s{ 0, 0, 0 });
 
-        // Set up LERP toward the new target. The previous sample is the
-        // actor's *current* pose (post any prior in-flight LERP), so the
-        // animation stays continuous when packets arrive at uneven
-        // intervals. lerpInterval is the frame count between this packet
-        // and the previous one, which adapts naturally to whatever the
-        // authority's broadcast rate ends up being. First packet for the
-        // actor: snap (lerpFrame defaults to 0, lerpInterval was 0, so
-        // EnemySync_TickNonAuthorityLerp skips, and we seed prev=target).
-        EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-        if (state != nullptr) {
-            state->prevPosX = actor->world.pos.x;
-            state->prevPosY = actor->world.pos.y;
-            state->prevPosZ = actor->world.pos.z;
-            state->prevRotX = actor->shape.rot.x;
-            state->prevRotY = actor->shape.rot.y;
-            state->prevRotZ = actor->shape.rot.z;
-            state->targetPosX = pos.x;
-            state->targetPosY = pos.y;
-            state->targetPosZ = pos.z;
-            state->targetRotX = rot.x;
-            state->targetRotY = rot.y;
-            state->targetRotZ = rot.z;
-            // Use however many frames it took for this packet to arrive
-            // (0 -> still on the previous packet's first frame). Floor at
-            // 2 so single-frame lerps don't snap, ceiling at 8 to keep a
-            // dropped packet from dragging the slide on too long.
-            int32_t interval = state->lerpFrame;
-            if (interval < 2) interval = 2;
-            if (interval > 8) interval = 8;
-            state->lerpInterval = interval;
-            state->lerpFrame = 0;
-        } else {
-            actor->world.pos = pos;
-            actor->shape.rot = rot;
-            actor->world.rot.y = rot.y;
-        }
+        actor->world.pos = pos;
+        actor->shape.rot = rot;
+        actor->world.rot.y = rot.y;
 
         actor->velocity.x = e.value("velX", 0.0f);
         actor->velocity.y = e.value("velY", 0.0f);

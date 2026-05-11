@@ -137,9 +137,14 @@ void Anchor::EnemySync_OnSceneSpawnActors() {
     }
 }
 
-// Called every game frame on the game thread. Throttled to 15 Hz (every 4
-// frames) for ENEMY_UPDATE broadcast. This is the central authority->peers
-// data path during steady-state combat.
+// Called every game frame on the game thread. Broadcasts ENEMY_UPDATE
+// at the full game tick rate (60 Hz) -- same cadence PLAYER_UPDATE uses
+// -- so receivers can assign world.pos / shape.rot directly each frame
+// without an interpolation buffer. Sending at half-rate plus a
+// receive-side LERP looked smooth in isolation, but network jitter
+// stretched the LERP interval unevenly and any third-party write to
+// world.pos between LERP ticks broke the prev/target baseline, both
+// of which read as stutter.
 void Anchor::EnemySync_TickAuthorityBroadcast() {
     if (!IsSaveLoaded() || !isConnected) {
         return;
@@ -148,13 +153,7 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
         return;
     }
 
-    // ~30Hz at 60fps. Receivers LERP between consecutive snapshots in
-    // EnemySync_TickNonAuthorityLerp so visible motion stays smooth at
-    // 60fps render rate even though we only push twice per tick.
     enemySyncTickCounter++;
-    if ((enemySyncTickCounter & 0x1) != 0) {
-        return;
-    }
 
     nlohmann::json enemies = nlohmann::json::array();
 
@@ -195,10 +194,10 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
     payload["enemies"] = enemies;
     payload["quiet"] = true;
 
-    // Diagnostic: log every ~5s (150 ticks at 30Hz). Tick counter + count
+    // Diagnostic: log every ~5s (300 ticks at 60Hz). Tick counter + count
     // gives enough signal to correlate against peer-side receive logs and
     // server-side relay counters.
-    if ((enemySyncTickCounter & 0x12C) == 0x12C) {
+    if ((enemySyncTickCounter % 300) == 0) {
         SPDLOG_INFO("[Anchor:diag] EnemySync broadcast scene={} count={} tick={}",
                     gPlayState->sceneNum, (int)enemies.size(), enemySyncTickCounter);
     }
@@ -283,53 +282,6 @@ void Anchor::EnemySync_OnActorDestroy(Actor* actor) {
     }
     state->enemyNetId = 0;
     state->isSynced = false;
-}
-
-// Non-authority side: walks every synced enemy in the current scene and
-// LERPs world.pos / shape.rot from the last sample toward the most recent
-// ENEMY_UPDATE target. Without this the actor snaps once per packet at
-// 30Hz, which reads as a stutter against 60fps render. Health, velocity,
-// and per-family AI fields are still applied directly in
-// HandlePacket_EnemyUpdate; we only smooth pose here.
-void Anchor::EnemySync_TickNonAuthorityLerp() {
-    if (!IsSaveLoaded() || !isConnected) {
-        return;
-    }
-    if (IsAuthorityForCurrentScene()) {
-        return;
-    }
-
-    for (u8 cat : kEnemySyncCategories) {
-        Actor* actor = gPlayState->actorCtx.actorLists[cat].head;
-        while (actor != NULL) {
-            if (IsSyncableEnemy(actor)) {
-                EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-                if (state != nullptr && state->isSynced && !state->isAuthority && state->lerpInterval > 0) {
-                if (state->lerpFrame < state->lerpInterval) {
-                    state->lerpFrame++;
-                }
-                float alpha = (float)state->lerpFrame / (float)state->lerpInterval;
-                if (alpha > 1.0f) {
-                    alpha = 1.0f;
-                }
-                actor->world.pos.x = state->prevPosX + (state->targetPosX - state->prevPosX) * alpha;
-                actor->world.pos.y = state->prevPosY + (state->targetPosY - state->prevPosY) * alpha;
-                actor->world.pos.z = state->prevPosZ + (state->targetPosZ - state->prevPosZ) * alpha;
-                // Shortest-path s16 LERP: cast the delta to s16 so the
-                // wraparound across +/- 0x8000 stays correct (e.g. going
-                // from 0x7FFF to 0x8001 takes 2 steps, not 0xFFFE).
-                int16_t dRotX = (int16_t)(state->targetRotX - state->prevRotX);
-                int16_t dRotY = (int16_t)(state->targetRotY - state->prevRotY);
-                int16_t dRotZ = (int16_t)(state->targetRotZ - state->prevRotZ);
-                    actor->shape.rot.x = state->prevRotX + (int16_t)(dRotX * alpha);
-                    actor->shape.rot.y = state->prevRotY + (int16_t)(dRotY * alpha);
-                    actor->shape.rot.z = state->prevRotZ + (int16_t)(dRotZ * alpha);
-                    actor->world.rot.y = actor->shape.rot.y;
-                }
-            }
-            actor = actor->next;
-        }
-    }
 }
 
 // Non-authority: per-family colliders have to be (re)registered with

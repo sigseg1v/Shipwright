@@ -168,7 +168,6 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnGameFrameUpdate, isConnected, [&]() {
         ProcessIncomingPacketQueue();
         EnemySync_TickAuthorityBroadcast();
-        EnemySync_TickNonAuthorityLerp();
         EnemySync_TrackEnemyDrops();
         MechanicSync_TickAuthorityBroadcast();
         SceneFlagsSnapshot_Tick();
