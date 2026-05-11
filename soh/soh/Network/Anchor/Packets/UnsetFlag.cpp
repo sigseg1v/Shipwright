@@ -5,8 +5,8 @@
 #include "soh/OTRGlobals.h"
 
 #include "functions.h"
-#include "soh/Enhancements/randomizer/ShuffleTradeItems.h"
 extern "C" {
+#include "soh/Enhancements/randomizer/ShuffleTradeItems.h"
 extern PlayState* gPlayState;
 }
 
