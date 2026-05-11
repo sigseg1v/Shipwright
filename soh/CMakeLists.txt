@@ -567,10 +567,18 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             -Wno-unused-parameter
             -Wno-unused-function
             -Wno-unused-variable
+            -Wno-unused-but-set-variable
             -Wno-missing-field-initializers
             -Wno-parentheses
             -Wno-narrowing
             -Wno-missing-braces
+            -Wno-sign-compare
+            # gcc-13 emits a flood of false positives inside <fmt/format.h>
+            # bigint code and several stdlib headers. silence them so real
+            # errors are visible.
+            -Wno-array-bounds
+            -Wno-stringop-overflow
+            -Wno-maybe-uninitialized
             $<$<COMPILE_LANGUAGE:C>:
                 -Werror-implicit-function-declaration
                 -Wno-implicit-int
