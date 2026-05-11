@@ -109,7 +109,14 @@ void ObjLift_Init(Actor* thisx, PlayState* play) {
 
     ObjLift_InitDynaPoly(this, play, &gCollapsingPlatformCol, DPM_PLAYER);
 
-    if (Flags_GetSwitch(play, (this->dyna.actor.params >> 2) & 0x3F)) {
+    // multiplayer: the "lift fell" switch flag is mirrored across clients
+    // by flag sync, so without this skip a single fall on one client would
+    // make every subsequent room entry kill the lift on both sides.
+    // letting it always respawn matches vanilla behavior for a player
+    // visiting the room for the first time, just per-visit instead of
+    // per-save.
+    if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("Enabled"), 0) &&
+        Flags_GetSwitch(play, (this->dyna.actor.params >> 2) & 0x3F)) {
         Actor_Kill(&this->dyna.actor);
         return;
     }
