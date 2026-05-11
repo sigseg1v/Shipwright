@@ -4,6 +4,7 @@
 
 #include "soh/Network/Network.h"
 #include <libultraship/libultraship.h>
+#include <array>
 #include <map>
 #include <mutex>
 #include <queue>
@@ -144,6 +145,7 @@ class Anchor : public Network {
     void HandlePacket_ItemCollect(nlohmann::json payload);
     void HandlePacket_SignCut(nlohmann::json payload);
     void HandlePacket_TorchState(nlohmann::json payload);
+    void HandlePacket_SceneFlags(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -158,9 +160,10 @@ class Anchor : public Network {
     inline static const std::string FEATURE_FOLIAGE_SYNC = "foliage_sync_v1";
     inline static const std::string FEATURE_ROCK_SYNC = "rock_sync_v1";
     inline static const std::string FEATURE_WORLD_EVENT_SYNC = "world_event_sync_v1";
+    inline static const std::string FEATURE_SCENE_FLAGS_SYNC = "scene_flags_sync_v1";
     inline static const std::vector<std::string> selfFeatures = {
-        FEATURE_ENEMY_SYNC,  FEATURE_SHARED_RUPEES,    FEATURE_FOLIAGE_SYNC,
-        FEATURE_ROCK_SYNC,   FEATURE_WORLD_EVENT_SYNC,
+        FEATURE_ENEMY_SYNC,      FEATURE_SHARED_RUPEES,    FEATURE_FOLIAGE_SYNC,
+        FEATURE_ROCK_SYNC,       FEATURE_WORLD_EVENT_SYNC, FEATURE_SCENE_FLAGS_SYNC,
     };
     bool ClientHasFeature(uint32_t clientId, const std::string& feature);
 
@@ -275,6 +278,20 @@ class Anchor : public Network {
     inline static const std::string SIGN_CUT = "SIGN_CUT";
     inline static const std::string TORCH_STATE = "TORCH_STATE";
 
+    // Per-scene runtime flag snapshot (FEATURE_SCENE_FLAGS_SYNC). The
+    // authority for the current scene diffs gPlayState->actorCtx.flags
+    // against the last broadcast snapshot every game frame and pushes
+    // the full 9-field struct (swch, tempSwch, unk0, unk1, chest, clear,
+    // tempClear, collect, tempCollect) when anything changes. Peers in
+    // the matching scene apply the snapshot wholesale. This catches
+    // runtime-only flag transitions that the SET_FLAG path misses:
+    // tempClear (no GameInteractor hook), unk0/unk1 (no hook), and any
+    // direct `actorCtx.flags.x |= bit` writes that bypass Flags_Set*.
+    // Persistent fields (swch < 0x20, chest, clear, collect < 0x20) are
+    // also mirrored to gSaveContext.sceneFlags via SET_FLAG; the
+    // overlap is harmless since the snapshot is idempotent.
+    inline static const std::string SCENE_FLAGS = "SCENE_FLAGS";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
     // Server-authoritative per-scene authority. Populated/updated by
@@ -343,6 +360,19 @@ class Anchor : public Network {
     // firing a packet on every per-frame tick-down.
     std::map<Actor*, u16> lastKanbanPartFlags;
     std::map<Actor*, bool> lastTorchLit;
+
+    // Per-scene cached snapshot of actorCtx.flags (9 fields, indexed in
+    // declaration order: swch, tempSwch, unk0, unk1, chest, clear,
+    // tempClear, collect, tempCollect). The authority compares the live
+    // struct against this every frame and broadcasts SCENE_FLAGS when a
+    // diff appears. Cleared on scene transition so the first frame in a
+    // new scene seeds a fresh baseline rather than diff-ing against the
+    // previous scene's values.
+    std::map<s16, std::array<u32, 9>> lastBroadcastSceneFlags;
+    // True only while we're applying a remote SCENE_FLAGS payload, so
+    // the next snapshot tick on this client doesn't immediately diff
+    // and re-broadcast its own copy of what just arrived.
+    bool isApplyingRemoteSceneFlags = false;
     RoomState roomState;
 
     void Enable();
@@ -392,6 +422,9 @@ class Anchor : public Network {
     void SendPacket_TorchState(s16 sceneNum, const std::string& torchId, s16 litTimer);
     std::string MakeKanbanId(const Actor* actor);
     std::string MakeTorchId(const Actor* actor);
+
+    void SendPacket_SceneFlags(s16 sceneNum);
+    void SceneFlagsSnapshot_Tick();
 
     // Enemy sync helpers (Phase 2 PoC)
     bool IsAuthorityForCurrentScene();

@@ -82,6 +82,11 @@ void Anchor::RegisterHooks() {
         // scene aren't valid in the new actor list, so wipe them.
         lastKanbanPartFlags.clear();
         lastTorchLit.clear();
+        // Drop the previous-scene actorCtx.flags snapshot so the first
+        // SceneFlagsSnapshot_Tick in the new scene seeds against the
+        // freshly-zeroed flags struct rather than diff-ing against
+        // whatever the previous scene was sitting on.
+        lastBroadcastSceneFlags.erase(gPlayState->sceneNum);
         // Same reasoning for the enemy net-id -> Actor* table: stale
         // pointers from the previous scene must not survive across
         // transitions. Cleared here (before any deferred enumeration
@@ -166,6 +171,7 @@ void Anchor::RegisterHooks() {
         EnemySync_TickAuthorityBroadcast();
         EnemySync_TickNonAuthorityLerp();
         EnemySync_TrackEnemyDrops();
+        SceneFlagsSnapshot_Tick();
 
         // Shared-rupees poll. We avoid hooking Rupees_ChangeBy directly
         // and instead diff (rupees + accumulator) once per frame so we
@@ -471,6 +477,7 @@ void Anchor::RegisterHooks() {
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_DEKUBABA);  // Deku Baba
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_KAREBABA);  // Big/Withered Deku Baba
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_DEKUNUTS);  // Mad Scrub
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_HINTNUTS);  // Deku Scrub (puzzle/hint variant)
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_GOMA);      // Gohma Larva
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_ST);        // Skulltula
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_SW);        // Skullwalltula
