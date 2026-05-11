@@ -537,6 +537,8 @@ void Anchor::RegisterHooks() {
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_NIW);        // Cucco
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_HEISHI3);    // Gerudo Fortress guard
     ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_HEISHI4);    // Gerudo Fortress jail/market guard
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_VM);         // Beamos
+    ANCHOR_REGISTER_ENEMY_SYNC_HOOKS(ACTOR_EN_FD);         // Flare Dancer (enflamed form)
 #undef ANCHOR_REGISTER_ENEMY_SYNC_HOOKS
 
     COND_HOOK(OnPlayerSfx, isConnected, [&](u16 sfxId) { SendPacket_PlayerSfx(sfxId); });
