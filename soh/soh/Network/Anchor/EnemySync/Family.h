@@ -3,9 +3,7 @@
 
 #include <nlohmann/json.hpp>
 
-extern "C" {
 #include "z64.h"
-}
 
 // Per-family hooks for enemy sync. One static EnemyFamily instance is
 // declared per overlay file under EnemySync/Families/, registered into

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Ssh/z_en_ssh.h"
-}
 
 // Big Skulltula (the large web-hanging variety). One ColliderJntSph
 // body plus six ColliderCylinders for the legs. Mirrors En_St.

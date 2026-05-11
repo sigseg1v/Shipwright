@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Ganon/z_boss_ganon.h"
 #undef this
-}
 
 // Ganondorf (tower fight). Single ColliderCylinder.
 

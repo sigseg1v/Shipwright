@@ -8,8 +8,8 @@
 #include "soh/Enhancements/item-tables/ItemTableManager.h"
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

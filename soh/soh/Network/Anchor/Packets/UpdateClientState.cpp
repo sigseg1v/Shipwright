@@ -5,9 +5,9 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

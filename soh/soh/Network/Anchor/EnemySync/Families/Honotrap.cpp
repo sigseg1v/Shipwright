@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Honotrap/z_en_honotrap.h"
-}
 
 // Flame trap. Collider is a union: HONOTRAP_EYE uses ColliderTris,
 // HONOTRAP_FLAME_MOVE / HONOTRAP_FLAME_DROP use ColliderCylinder.

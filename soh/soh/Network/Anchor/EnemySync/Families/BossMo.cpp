@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Mo/z_boss_mo.h"
 #undef this
-}
 
 // Morpha. ColliderJntSph tentCollider and ColliderCylinder coreCollider.
 

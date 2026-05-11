@@ -1,12 +1,10 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
 #include "src/overlays/actors/ovl_Obj_Oshihiki/z_obj_oshihiki.h"
-}
 
 // Push block. Static the moment Link isn't pushing it, so we gate the
 // broadcast on PUSHBLOCK_PUSH | PUSHBLOCK_FALL -- only states where

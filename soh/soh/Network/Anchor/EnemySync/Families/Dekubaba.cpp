@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dekubaba/z_en_dekubaba.h"
-}
 
 // Deku Baba (the small biting plant that drops a stick). JntSph
 // collider on the head. AI state not yet plumbed; v1 syncs pos/rot/hp

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Mb/z_en_mb.h"
-}
 
 // Moblin (spear and club variants). Body ColliderCylinder, attack
 // ColliderQuad, plus a ColliderTris standing in for a front shield.

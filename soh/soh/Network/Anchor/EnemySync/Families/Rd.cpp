@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Rd/z_en_rd.h"
-}
 
 // Redead / Gibdo. Single ColliderCylinder.
 

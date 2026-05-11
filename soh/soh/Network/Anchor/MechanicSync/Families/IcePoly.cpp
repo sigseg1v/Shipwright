@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Red ice block (melted with blue fire) found in Ice Cavern and GTG.
 

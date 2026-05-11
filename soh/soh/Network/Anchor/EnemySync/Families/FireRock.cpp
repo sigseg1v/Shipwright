@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Fire_Rock/z_en_fire_rock.h"
-}
 
 // Fire rock (Death Mountain falling rocks). Single ColliderCylinder.
 

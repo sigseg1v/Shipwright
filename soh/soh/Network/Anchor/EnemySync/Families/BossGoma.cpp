@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Goma/z_boss_goma.h"
 #undef this
-}
 
 // Queen Gohma. Single ColliderJntSph (body/eye).
 

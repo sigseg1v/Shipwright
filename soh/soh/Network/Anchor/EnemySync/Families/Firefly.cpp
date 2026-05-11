@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Firefly/z_en_firefly.h"
-}
 
 // Keese (bat). Single ColliderJntSph.
 

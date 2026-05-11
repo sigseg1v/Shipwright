@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dodojr/z_en_dodojr.h"
-}
 
 // Baby Dodongo. Single ColliderCylinder.
 

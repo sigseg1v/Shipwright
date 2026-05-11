@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Peehat/z_en_peehat.h"
-}
 
 // Peahat. One ColliderCylinder (body) plus one ColliderJntSph (blade
 // hub) plus one ColliderQuad (spinning blade). Quad is registered via

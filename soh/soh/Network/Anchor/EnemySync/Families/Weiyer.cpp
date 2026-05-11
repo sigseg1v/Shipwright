@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Weiyer/z_en_weiyer.h"
-}
 
 // Stinger (sea/lake spike fish). Single ColliderCylinder.
 

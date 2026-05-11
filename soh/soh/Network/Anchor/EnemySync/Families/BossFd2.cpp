@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Fd2/z_boss_fd2.h"
 #undef this
-}
 
 // Volvagia (hole phase). Single ColliderJntSph.
 

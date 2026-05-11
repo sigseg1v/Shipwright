@@ -3,10 +3,10 @@
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "z64save.h"
+extern "C" {
 extern PlayState* gPlayState;
 extern SaveContext gSaveContext;
 }

@@ -4,8 +4,8 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Network/Anchor/JsonConversions.hpp"
 
-extern "C" {
 #include "macros.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

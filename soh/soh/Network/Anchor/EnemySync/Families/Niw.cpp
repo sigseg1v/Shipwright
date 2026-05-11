@@ -5,11 +5,9 @@
 // z_en_niw.h declares helper functions using `this` as the parameter
 // name. The header has its own __cplusplus guard but we still wrap to be
 // safe.
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_En_Niw/z_en_niw.h"
 #undef this
-}
 
 // Cucco. Single ColliderCylinder.
 

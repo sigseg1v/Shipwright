@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Ganon2/z_boss_ganon2.h"
 #undef this
-}
 
 // Ganon (final form, pig). Two ColliderJntSph fields (unk_424 and
 // unk_444) for body and tail respectively.

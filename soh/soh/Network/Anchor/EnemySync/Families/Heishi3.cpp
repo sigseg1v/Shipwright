@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Heishi3/z_en_heishi3.h"
-}
 
 // Gerudo Fortress guard. Single ColliderCylinder.
 

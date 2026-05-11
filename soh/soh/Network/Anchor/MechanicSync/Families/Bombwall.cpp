@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Bombable wall used in many dungeons; destroyed state must propagate.
 

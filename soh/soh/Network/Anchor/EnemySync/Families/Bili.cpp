@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bili/z_en_bili.h"
-}
 
 // Biri (small jellyfish). Single ColliderCylinder.
 

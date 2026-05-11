@@ -4,7 +4,6 @@
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
@@ -17,6 +16,7 @@ extern "C" {
 #include "src/overlays/actors/ovl_En_St/z_en_st.h"
 #undef this
 #include "src/overlays/actors/ovl_En_Sw/z_en_sw.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

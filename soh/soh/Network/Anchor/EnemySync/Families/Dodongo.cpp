@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dodongo/z_en_dodongo.h"
-}
 
 // Dodongo (the big lizard miniboss spawned in dungeons / KDR). AT ColliderQuad,
 // hard-skin ColliderTris, body ColliderJntSph.

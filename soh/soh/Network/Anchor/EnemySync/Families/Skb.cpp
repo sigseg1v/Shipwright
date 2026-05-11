@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
-}
 
 // Stalchild. JntSph collider on the body. Action state, break flags,
 // and the headless yaw offset all need plumbing through ENEMY_UPDATE

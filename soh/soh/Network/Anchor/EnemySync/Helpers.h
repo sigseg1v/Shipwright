@@ -1,11 +1,16 @@
 #ifndef NETWORK_ANCHOR_ENEMYSYNC_HELPERS_H
 #define NETWORK_ANCHOR_ENEMYSYNC_HELPERS_H
 
-extern "C" {
+// z64.h / macros.h / functions.h / variables.h each contain their own
+// `#ifdef __cplusplus extern "C"` blocks. Wrapping them again in an
+// outer extern "C" makes z64.h's `#include <memory>` (which lives inside
+// its own __cplusplus guard) inherit C linkage, which the C++ stdlib
+// rejects with "template with C linkage" errors on gcc 13.
 #include "z64.h"
 #include "macros.h"
 #include "functions.h"
 #include "variables.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

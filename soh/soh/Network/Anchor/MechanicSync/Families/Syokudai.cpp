@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Wall/floor torch stand that can be lit with Din's Fire or a fire arrow.
 

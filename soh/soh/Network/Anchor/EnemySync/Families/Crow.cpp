@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Crow/z_en_crow.h"
-}
 
 // Guay (crow). Single ColliderJntSph.
 

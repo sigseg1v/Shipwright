@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Ice_Hono/z_en_ice_hono.h"
-}
 
 // Ice/blue flame. Single ColliderCylinder.
 

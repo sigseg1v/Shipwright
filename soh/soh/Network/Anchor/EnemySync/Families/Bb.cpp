@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bb/z_en_bb.h"
-}
 
 // Bubble (flaming skull). Single ColliderJntSph.
 

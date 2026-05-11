@@ -4,11 +4,9 @@
 
 // z_en_brob.h declares an action-func typedef using `this` as the parameter
 // name, which is a reserved word in C++. Locally rename it during include.
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_En_Brob/z_en_brob.h"
 #undef this
-}
 
 // Brob (Jabu-Jabu spinning shock platform). Two ColliderCylinders.
 // Stored in `colliders[2]`; underlying actor is a DynaPolyActor but the

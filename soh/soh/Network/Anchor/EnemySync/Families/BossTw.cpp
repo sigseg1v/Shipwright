@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Tw/z_boss_tw.h"
 #undef this
-}
 
 // Twinrova (Koume / Kotake, also merged form). Single ColliderCylinder.
 // Each sister actor instance owns its own collider; the paired sub-actor

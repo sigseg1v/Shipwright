@@ -12,10 +12,8 @@
 #include <string>
 #include <vector>
 
-extern "C" {
 #include "variables.h"
 #include "z64.h"
-}
 
 void DummyPlayer_Init(Actor* actor, PlayState* play);
 void DummyPlayer_Update(Actor* actor, PlayState* play);

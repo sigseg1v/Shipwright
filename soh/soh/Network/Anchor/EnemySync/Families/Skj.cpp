@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Skj/z_en_skj.h"
-}
 
 // Skull Kid. Single ColliderCylinder (used for both the friendly forest
 // variant and the hostile needle-shooting variants).

@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Spirit Temple wire-mesh grate that opens via switch flag.
 

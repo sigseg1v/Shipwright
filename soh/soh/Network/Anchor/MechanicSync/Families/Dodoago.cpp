@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // King Dodongo's mouth / Dodongo statue head with bomb-feed mechanic.
 

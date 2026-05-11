@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Heishi4/z_en_heishi4.h"
-}
 
 // Gerudo Fortress jail guard / market guard. Single ColliderCylinder.
 

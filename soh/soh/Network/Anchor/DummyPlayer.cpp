@@ -2,10 +2,10 @@
 #include "soh/Enhancements/nametag.h"
 #include "soh/frame_interpolation.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 
 void Player_UseItem(PlayState* play, Player* player, s32 item);

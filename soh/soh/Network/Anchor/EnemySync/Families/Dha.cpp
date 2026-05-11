@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dha/z_en_dha.h"
-}
 
 // Dead Hand's hand (the disembodied grabbers). Single ColliderJntSph.
 

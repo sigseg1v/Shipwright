@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_GeldB/z_en_geldb.h"
-}
 
 // Gerudo (white-clad fighter). Body ColliderCylinder, sword ColliderQuad,
 // shield-block ColliderTris.

@@ -5,8 +5,8 @@
 #include "soh/OTRGlobals.h"
 #include "soh/Notification/Notification.h"
 
-extern "C" {
 #include "variables.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

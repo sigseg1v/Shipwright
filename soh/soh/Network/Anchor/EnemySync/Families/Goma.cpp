@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Goma/z_en_goma.h"
-}
 
 // Gohma Larva (the small spider-like minions, both inside the boss
 // fight and elsewhere). Two ColliderCylinders.

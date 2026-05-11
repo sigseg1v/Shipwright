@@ -7,7 +7,6 @@
 #include "soh/OTRGlobals.h"
 #include "soh/ObjectExtension/ObjectExtension.h"
 
-extern "C" {
 #include "variables.h"
 #include "functions.h"
 #include "src/overlays/actors/ovl_Bg_Bombwall/z_bg_bombwall.h"
@@ -36,7 +35,7 @@ extern "C" {
 #include "src/overlays/actors/ovl_Bg_Hidan_Dalm/z_bg_hidan_dalm.h"
 #include "src/overlays/actors/ovl_Bg_Hidan_Kowarerukabe/z_bg_hidan_kowarerukabe.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
-
+extern "C" {
 extern PlayState* gPlayState;
 extern MapData* gMapData;
 

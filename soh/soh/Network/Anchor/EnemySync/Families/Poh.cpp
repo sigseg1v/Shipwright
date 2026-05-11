@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Poh/z_en_poh.h"
-}
 
 // Poe. One ColliderCylinder (lantern/body) plus one ColliderJntSph
 // (soul).

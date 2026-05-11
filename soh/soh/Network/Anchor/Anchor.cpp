@@ -6,9 +6,9 @@
 #include "soh/Enhancements/nametag.h"
 #include "soh/ObjectExtension/ObjectExtension.h"
 
-extern "C" {
 #include "variables.h"
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

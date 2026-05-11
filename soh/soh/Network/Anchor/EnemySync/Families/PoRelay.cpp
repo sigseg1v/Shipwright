@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Po_Relay/z_en_po_relay.h"
-}
 
 // Dampe ghost. Single ColliderCylinder.
 

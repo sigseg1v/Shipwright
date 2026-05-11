@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dh/z_en_dh.h"
-}
 
 // Dead Hand. ColliderCylinder (body) + ColliderJntSph (head/hand).
 

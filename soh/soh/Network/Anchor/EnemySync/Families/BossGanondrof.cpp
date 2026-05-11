@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Ganondrof/z_boss_ganondrof.h"
 #undef this
-}
 
 // Phantom Ganon (rider). Two ColliderCylinders: colliderBody, colliderSpear.
 // The horse is a separate paired actor without its own collider fields.

@@ -4,11 +4,11 @@
 #include "soh/OTRGlobals.h"
 #include <cstdio>
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
 #include "src/overlays/actors/ovl_En_Kanban/z_en_kanban.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

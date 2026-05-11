@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Wallmas/z_en_wallmas.h"
-}
 
 // Wallmaster. Single ColliderCylinder.
 

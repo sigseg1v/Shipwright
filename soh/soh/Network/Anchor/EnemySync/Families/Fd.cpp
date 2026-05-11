@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_En_Fd/z_en_fd.h"
 #undef this
-}
 
 namespace {
 

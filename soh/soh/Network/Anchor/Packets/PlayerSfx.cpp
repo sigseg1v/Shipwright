@@ -3,10 +3,10 @@
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
 
-extern "C" {
 #include "macros.h"
 #include "functions.h"
 #include "variables.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

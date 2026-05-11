@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Zf/z_en_zf.h"
-}
 
 // Lizalfos / Dinolfos. Body ColliderCylinder + sword ColliderQuad.
 

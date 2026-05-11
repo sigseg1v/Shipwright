@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Tp/z_en_tp.h"
-}
 
 // Tailpasaran (electric centipede). Single ColliderJntSph.
 

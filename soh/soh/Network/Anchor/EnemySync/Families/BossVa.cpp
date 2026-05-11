@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Va/z_boss_va.h"
 #undef this
-}
 
 // Barinade. ColliderCylinder colliderBody, ColliderJntSph colliderSph,
 // ColliderQuad colliderLightning.

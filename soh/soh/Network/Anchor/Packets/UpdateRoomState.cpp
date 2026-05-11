@@ -4,8 +4,8 @@
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "variables.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

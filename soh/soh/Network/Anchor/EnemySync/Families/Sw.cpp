@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Sw/z_en_sw.h"
-}
 
 // Skullwalltula (the small wall-crawling spider). Single JntSph.
 

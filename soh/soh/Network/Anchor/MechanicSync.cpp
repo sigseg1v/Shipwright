@@ -9,10 +9,10 @@
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

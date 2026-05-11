@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bubble/z_en_bubble.h"
-}
 
 // Shabom (the bouncing soap-bubble enemy). Single ColliderJntSph.
 

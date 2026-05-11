@@ -4,11 +4,11 @@
 #include "soh/OTRGlobals.h"
 #include <cstdio>
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
 #include "src/overlays/actors/ovl_Obj_Syokudai/z_obj_syokudai.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

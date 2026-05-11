@@ -6,11 +6,9 @@
 // name, which is a reserved word in C++. Locally rename it during include
 // only -- the redefinition is identifier-name only, so the struct layout
 // and any `this` callers in .c files are unaffected.
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_En_St/z_en_st.h"
 #undef this
-}
 
 // Skulltula (the large web-hanging variety). One JntSph (body) plus six
 // ColliderCylinders (legs).

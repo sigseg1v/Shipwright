@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Reeba/z_en_reeba.h"
-}
 
 // Leever. Single ColliderCylinder.
 

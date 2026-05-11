@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bigokuta/z_en_bigokuta.h"
-}
 
 // Big Octo. One ColliderJntSph (body) plus two ColliderCylinders (sub hitboxes).
 

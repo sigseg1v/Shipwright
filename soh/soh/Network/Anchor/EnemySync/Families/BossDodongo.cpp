@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Dodongo/z_boss_dodongo.h"
 #undef this
-}
 
 // King Dodongo. Single ColliderJntSph.
 

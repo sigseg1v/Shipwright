@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Karebaba/z_en_karebaba.h"
-}
 
 // Big/Withered Deku Baba. Two ColliderCylinders (head + body stem).
 

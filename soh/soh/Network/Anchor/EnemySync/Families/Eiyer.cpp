@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Eiyer/z_en_eiyer.h"
-}
 
 // Stinger (the leever-like enemy that lurks under sand/water). Single
 // ColliderCylinder.

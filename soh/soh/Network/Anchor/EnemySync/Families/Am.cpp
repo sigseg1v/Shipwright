@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Am/z_en_am.h"
-}
 
 // Armos. Two ColliderCylinders (hurt + block) plus one ColliderQuad
 // (hit). Quad has no per-frame position helper; register its base

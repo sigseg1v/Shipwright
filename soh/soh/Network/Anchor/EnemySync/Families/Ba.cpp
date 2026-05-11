@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Ba/z_en_ba.h"
-}
 
 // Bari / Biri tentacle (electric jellyfish dangly). Single ColliderJntSph.
 

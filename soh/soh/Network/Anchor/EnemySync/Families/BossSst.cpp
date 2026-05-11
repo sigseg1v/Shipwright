@@ -2,11 +2,9 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #define this thisx
 #include "src/overlays/actors/ovl_Boss_Sst/z_boss_sst.h"
 #undef this
-}
 
 // Bongo Bongo. ColliderJntSph colliderJntSph (hands/head spheres) and
 // ColliderCylinder colliderCyl.

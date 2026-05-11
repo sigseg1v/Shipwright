@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Dekunuts/z_en_dekunuts.h"
-}
 
 // Mad Scrub. Single ColliderCylinder; AI driven by an actionFunc
 // pointer rather than an enum, so per-family AI sync would need a

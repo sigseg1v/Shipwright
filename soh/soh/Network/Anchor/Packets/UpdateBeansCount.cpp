@@ -4,9 +4,7 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "macros.h"
-}
 
 /**
  * UPDATE_BEANS_COUNT

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Test/z_en_test.h"
-}
 
 // Stalfos. Body and shield ColliderCylinders, sword ColliderQuad.
 

@@ -3,9 +3,9 @@
 #include <libultraship/libultraship.h>
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 
-extern "C" {
 #include "macros.h"
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 void func_80838280(Player* player);
 }

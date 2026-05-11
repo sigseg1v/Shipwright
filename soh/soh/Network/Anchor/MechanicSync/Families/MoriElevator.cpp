@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Forest Temple elevator. Pure pos.y oscillation driven by the local
 // switch flag, but two clients pulling the switch at slightly different

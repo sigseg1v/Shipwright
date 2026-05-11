@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Tubo_Trap/z_en_tubo_trap.h"
-}
 
 // Flying jar trap. Single ColliderCylinder.
 

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Po_Field/z_en_po_field.h"
-}
 
 // Field poe. Body ColliderCylinder plus a flame ColliderCylinder.
 

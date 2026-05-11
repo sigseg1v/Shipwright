@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Sb/z_en_sb.h"
-}
 
 // Shellblade. Single ColliderCylinder.
 

@@ -4,9 +4,9 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "functions.h"
 #include "soh/Enhancements/randomizer/ShuffleTradeItems.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

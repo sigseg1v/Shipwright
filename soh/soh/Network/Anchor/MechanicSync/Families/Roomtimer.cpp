@@ -1,11 +1,9 @@
 #include "../Family.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-}
 
 // Per-room countdown timer (e.g. Fire Temple heat room, GTG silver rupee rooms).
 

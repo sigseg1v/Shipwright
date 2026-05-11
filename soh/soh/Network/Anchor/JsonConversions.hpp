@@ -6,9 +6,7 @@
 #include <libultraship/libultraship.h>
 #include "Anchor.h"
 
-extern "C" {
 #include "z64.h"
-}
 
 using json = nlohmann::json;
 

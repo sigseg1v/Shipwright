@@ -3,9 +3,7 @@
 
 #include <nlohmann/json.hpp>
 
-extern "C" {
 #include "z64.h"
-}
 
 // Per-family hooks for mechanic sync (moving Bg_* / Obj_* actors that
 // the player can interact with but which aren't combat enemies).

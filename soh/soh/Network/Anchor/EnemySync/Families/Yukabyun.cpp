@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Yukabyun/z_en_yukabyun.h"
-}
 
 // Yukabyun (Forest Temple floor tile that lifts up and attacks). Single ColliderCylinder.
 

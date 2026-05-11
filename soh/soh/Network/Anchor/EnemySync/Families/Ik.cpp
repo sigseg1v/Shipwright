@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Ik/z_en_ik.h"
-}
 
 // Iron Knuckle. Body ColliderCylinder, axe ColliderQuad, shield
 // ColliderTris.

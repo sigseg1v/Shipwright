@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bx/z_en_bx.h"
-}
 
 // Tailpasaran (the worm/stinger swarm). ColliderCylinder body plus a
 // ColliderQuad tail attack.

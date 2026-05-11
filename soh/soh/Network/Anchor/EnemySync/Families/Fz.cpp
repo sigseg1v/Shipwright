@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Fz/z_en_fz.h"
-}
 
 // Freezard. Three stacked ColliderCylinders.
 

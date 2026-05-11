@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Wf/z_en_wf.h"
-}
 
 // Wolfos. One ColliderJntSph (body spheres) plus two ColliderCylinders
 // (body and tail).

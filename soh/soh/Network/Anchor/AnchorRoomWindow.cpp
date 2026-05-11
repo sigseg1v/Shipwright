@@ -1,9 +1,9 @@
 #include "Anchor.h"
 #include "soh/OTRGlobals.h"
 
-extern "C" {
 #include "variables.h"
 #include "functions.h"
+extern "C" {
 extern PlayState* gPlayState;
 }
 

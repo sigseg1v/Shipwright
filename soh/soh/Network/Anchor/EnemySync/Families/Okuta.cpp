@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Okuta/z_en_okuta.h"
-}
 
 // Octorok. Single ColliderCylinder.
 

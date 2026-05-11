@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Bw/z_en_bw.h"
-}
 
 // Torch Slug. Two ColliderCylinders (body + flame aura).
 

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Trap/z_en_trap.h"
-}
 
 // Spike trap. Single ColliderCylinder.
 

@@ -2,9 +2,7 @@
 #include "../Helpers.h"
 #include "../Registry.h"
 
-extern "C" {
 #include "src/overlays/actors/ovl_En_Hintnuts/z_en_hintnuts.h"
-}
 
 // Puzzle/hint Deku Scrub (the locked-room reflect-the-deku-nut variant).
 // Same shape as EnDekunuts: actionFunc-driven AI, single ColliderCylinder.
