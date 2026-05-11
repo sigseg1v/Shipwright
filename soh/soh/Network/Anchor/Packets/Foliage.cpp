@@ -73,6 +73,53 @@ void Anchor::HandlePacket_FoliageDestroy(nlohmann::json payload) {
     }
 }
 
+void Anchor::SendPacket_FoliageRegrow(s16 sceneNum, const std::string& foliageId, f32 x, f32 y, f32 z, s16 rotY,
+                                      s16 params) {
+    nlohmann::json payload;
+    payload["type"] = FOLIAGE_REGROW;
+    payload["sceneNum"] = sceneNum;
+    payload["foliageId"] = foliageId;
+    payload["x"] = x;
+    payload["y"] = y;
+    payload["z"] = z;
+    payload["rotY"] = rotY;
+    payload["params"] = params;
+    SendJsonToRemote(payload);
+}
+
+// TYPE_1 deku shrubs regrow on a timer after being sliced. The
+// originating client tracks ACTOR_FLAG_GRASS_DESTROYED transitioning
+// back to false on its still-alive EnKusa and broadcasts this packet.
+// Peers (which Actor_Killed their copy on the prior FOLIAGE_DESTROY)
+// drop the id from their per-scene destroyedFoliage set so future
+// snapshots/inits don't immediately re-kill it, and spawn a fresh
+// EnKusa at the carried home position. The new instance follows its
+// own normal lifecycle from there.
+void Anchor::HandlePacket_FoliageRegrow(nlohmann::json payload) {
+    if (!payload.contains("sceneNum") || !payload.contains("foliageId")) {
+        return;
+    }
+    s16 sceneNum = payload["sceneNum"].get<s16>();
+    std::string foliageId = payload["foliageId"].get<std::string>();
+
+    auto setIt = destroyedFoliage.find(sceneNum);
+    if (setIt != destroyedFoliage.end()) {
+        setIt->second.erase(foliageId);
+    }
+
+    if (!IsSaveLoaded() || gPlayState == nullptr || gPlayState->sceneNum != sceneNum) {
+        return;
+    }
+
+    f32 x = payload.value("x", 0.0f);
+    f32 y = payload.value("y", 0.0f);
+    f32 z = payload.value("z", 0.0f);
+    s16 rotY = payload.value("rotY", (s16)0);
+    s16 params = payload.value("params", (s16)0);
+
+    Actor_Spawn(&gPlayState->actorCtx, gPlayState, ACTOR_EN_KUSA, x, y, z, 0, rotY, 0, params);
+}
+
 void Anchor::HandlePacket_FoliageSnapshot(nlohmann::json payload) {
     if (!payload.contains("sceneNum") || !payload.contains("foliageIds")) {
         return;

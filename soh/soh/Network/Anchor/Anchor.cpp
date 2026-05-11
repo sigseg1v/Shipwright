@@ -120,7 +120,8 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
                              packetType == ENEMY_DAMAGE || packetType == ENEMY_DEATH ||
                              packetType == ENEMY_FULL_SNAPSHOT;
     bool isRupeesPacket = packetType == UPDATE_RUPEES || packetType == RUPEES_SET;
-    bool isFoliagePacket = packetType == FOLIAGE_DESTROY || packetType == FOLIAGE_SNAPSHOT;
+    bool isFoliagePacket =
+        packetType == FOLIAGE_DESTROY || packetType == FOLIAGE_SNAPSHOT || packetType == FOLIAGE_REGROW;
     bool isRockPacket = packetType == ROCK_DESTROY || packetType == ROCK_SNAPSHOT ||
                         packetType == ROCK_LIFT || packetType == ITEM_SPAWN ||
                         packetType == ITEM_COLLECT;
@@ -260,6 +261,8 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_FoliageDestroy(payload);
             else if (packetType == FOLIAGE_SNAPSHOT)
                 HandlePacket_FoliageSnapshot(payload);
+            else if (packetType == FOLIAGE_REGROW)
+                HandlePacket_FoliageRegrow(payload);
             else if (packetType == ROCK_DESTROY)
                 HandlePacket_RockDestroy(payload);
             else if (packetType == ROCK_SNAPSHOT)

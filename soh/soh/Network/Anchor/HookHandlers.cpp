@@ -213,41 +213,68 @@ void Anchor::RegisterHooks() {
     COND_ID_HOOK(OnActorKill, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
-        // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
-        // actor whose room != curRoom on a room transition. That is not
-        // a real cut event, so skip the broadcast.
-        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
         s16 sceneNum = gPlayState->sceneNum;
         std::string id = MakeFoliageId(actor);
+        auto& set = destroyedFoliage[sceneNum];
+        // Engine room-cleanup (z_actor.c func_80031B14) Actor_Kills every
+        // actor whose room != curRoom on a room transition. That is not
+        // a real cut event. But: if this bush was already mid-cut (in
+        // our destroyed set) and is a TYPE_1 (regrowing), we have to
+        // tell peers to drop it from their set -- otherwise their next
+        // FOLIAGE_SNAPSHOT on scene re-entry kills the freshly-spawned
+        // bush and leaves it permanently gone, even though our side will
+        // happily re-spawn it from the scene's actor list.
+        if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) {
+            // (actor->params & 3) == 1 is ENKUSA_TYPE_1 (defined in the
+            // EnKusa overlay header; using the literal here to avoid
+            // pulling the overlay header into HookHandlers).
+            if (set.count(id) && (actor->params & 3) == 1) {
+                set.erase(id);
+                SendPacket_FoliageRegrow(sceneNum, id, actor->home.pos.x, actor->home.pos.y, actor->home.pos.z,
+                                         actor->home.rot.y, (s16)actor->params);
+            }
+            return;
+        }
         // Already in our set? Either we just killed it from a
         // FOLIAGE_DESTROY/SNAPSHOT, or someone else's destroy raced
         // ours. Either way the server will dedupe; skip the send to
         // avoid a flood on scene-load mass-kill paths.
-        auto& set = destroyedFoliage[sceneNum];
         if (set.count(id)) return;
         set.insert(id);
         SendPacket_FoliageDestroy(sceneNum, id);
     });
 
-    // TYPE_1 / TYPE_2 cut detection (see comment above). The actor stays
-    // in the list with ACTOR_FLAG_GRASS_DESTROYED set after the slice.
-    // We don't need explicit edge tracking: the destroyedFoliage set is
-    // checked first and dedupes naturally, so the broadcast fires once
-    // even though the flag stays high until regrow. Receive side
-    // (FOLIAGE_DESTROY -> Actor_Kill) makes peers lose the regrow on
-    // TYPE_1, which is the v1 trade-off; full state replication can
-    // come later if it matters.
+    // TYPE_1 / TYPE_2 cut and TYPE_1 regrow detection (see comment above).
+    // The actor stays in the list with ACTOR_FLAG_GRASS_DESTROYED set
+    // after the slice; TYPE_1 clears the flag again when EnKusa_Regrow
+    // restores it. We dedupe by checking the per-scene destroyedFoliage
+    // set rather than caching previous flag state per actor: presence in
+    // the set means "we have already broadcast a destroy for this id and
+    // not yet broadcast a regrow." This naturally collapses the multi-
+    // frame flag-high window into a single destroy packet, and the
+    // matching multi-frame flag-low window after regrow into a single
+    // regrow packet.
     COND_ID_HOOK(OnActorUpdate, ACTOR_EN_KUSA, isConnected, [&](void* refActor) {
         Actor* actor = (Actor*)refActor;
         if (gPlayState == nullptr || !IsSaveLoaded()) return;
-        if (!(actor->flags & ACTOR_FLAG_GRASS_DESTROYED)) return;
         if (actor->room >= 0 && actor->room != gPlayState->roomCtx.curRoom.num) return;
         s16 sceneNum = gPlayState->sceneNum;
         std::string id = MakeFoliageId(actor);
         auto& set = destroyedFoliage[sceneNum];
-        if (set.count(id)) return;
-        set.insert(id);
-        SendPacket_FoliageDestroy(sceneNum, id);
+        bool isDestroyed = (actor->flags & ACTOR_FLAG_GRASS_DESTROYED) != 0;
+        bool wasInSet = set.count(id) != 0;
+        if (isDestroyed && !wasInSet) {
+            set.insert(id);
+            SendPacket_FoliageDestroy(sceneNum, id);
+        } else if (!isDestroyed && wasInSet) {
+            set.erase(id);
+            // Use home.pos / home.rot so peers get the spawn pose, not
+            // whatever the actor moved to during the cut animation.
+            // (TYPE_1 also resets to home pos in EnKusa_SetupRegrow but
+            // this is robust regardless of which frame we observe.)
+            SendPacket_FoliageRegrow(sceneNum, id, actor->home.pos.x, actor->home.pos.y, actor->home.pos.z,
+                                     actor->home.rot.y, (s16)actor->params);
+        }
     });
 
     // Rock sync: same shape as foliage. Hides any rocks already

@@ -135,6 +135,7 @@ class Anchor : public Network {
     void HandlePacket_UpdateTeamState(nlohmann::json payload);
     void HandlePacket_RupeesSet(nlohmann::json payload);
     void HandlePacket_FoliageDestroy(nlohmann::json payload);
+    void HandlePacket_FoliageRegrow(nlohmann::json payload);
     void HandlePacket_FoliageSnapshot(nlohmann::json payload);
     void HandlePacket_RockDestroy(nlohmann::json payload);
     void HandlePacket_RockSnapshot(nlohmann::json payload);
@@ -229,6 +230,12 @@ class Anchor : public Network {
     // before they got there.
     inline static const std::string FOLIAGE_DESTROY = "FOLIAGE_DESTROY";
     inline static const std::string FOLIAGE_SNAPSHOT = "FOLIAGE_SNAPSHOT";
+    // Sent when a previously-cut TYPE_1 EnKusa shrub regrows on the
+    // originating client. Peers re-spawn a fresh EnKusa at the carried
+    // position/params so the bush reappears in lockstep. Older anchor
+    // servers relay any unknown packet type, so this works as a pure
+    // additive change.
+    inline static const std::string FOLIAGE_REGROW = "FOLIAGE_REGROW";
 
     // Rock-sync packet types (FEATURE_ROCK_SYNC). Same shape as the
     // foliage pair but for liftable/breakable rock actors (currently
@@ -373,6 +380,8 @@ class Anchor : public Network {
     void SendPacket_UpdateTeamState();
     void SendPacket_UpdateRupees(s32 delta, s32 seed);
     void SendPacket_FoliageDestroy(s16 sceneNum, const std::string& foliageId);
+    void SendPacket_FoliageRegrow(s16 sceneNum, const std::string& foliageId, f32 x, f32 y, f32 z, s16 rotY,
+                                  s16 params);
     std::string MakeFoliageId(const Actor* actor);
     void SendPacket_RockDestroy(s16 sceneNum, const std::string& rockId);
     void SendPacket_RockLift(s16 sceneNum, const std::string& rockId, s16 rockType);
