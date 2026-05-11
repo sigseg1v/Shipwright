@@ -146,6 +146,7 @@ class Anchor : public Network {
     void HandlePacket_SignCut(nlohmann::json payload);
     void HandlePacket_TorchState(nlohmann::json payload);
     void HandlePacket_SceneFlags(nlohmann::json payload);
+    void HandlePacket_MechanicState(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -161,9 +162,11 @@ class Anchor : public Network {
     inline static const std::string FEATURE_ROCK_SYNC = "rock_sync_v1";
     inline static const std::string FEATURE_WORLD_EVENT_SYNC = "world_event_sync_v1";
     inline static const std::string FEATURE_SCENE_FLAGS_SYNC = "scene_flags_sync_v1";
+    inline static const std::string FEATURE_MECHANIC_SYNC = "mechanic_sync_v1";
     inline static const std::vector<std::string> selfFeatures = {
-        FEATURE_ENEMY_SYNC,      FEATURE_SHARED_RUPEES,    FEATURE_FOLIAGE_SYNC,
-        FEATURE_ROCK_SYNC,       FEATURE_WORLD_EVENT_SYNC, FEATURE_SCENE_FLAGS_SYNC,
+        FEATURE_ENEMY_SYNC,       FEATURE_SHARED_RUPEES,    FEATURE_FOLIAGE_SYNC,
+        FEATURE_ROCK_SYNC,        FEATURE_WORLD_EVENT_SYNC, FEATURE_SCENE_FLAGS_SYNC,
+        FEATURE_MECHANIC_SYNC,
     };
     bool ClientHasFeature(uint32_t clientId, const std::string& feature);
 
@@ -291,6 +294,14 @@ class Anchor : public Network {
     // also mirrored to gSaveContext.sceneFlags via SET_FLAG; the
     // overlap is harmless since the snapshot is idempotent.
     inline static const std::string SCENE_FLAGS = "SCENE_FLAGS";
+
+    // Mechanic-sync packet types (FEATURE_MECHANIC_SYNC). Authority-only,
+    // ~15Hz, room-broadcast. Carries pos/rot (+ optional per-family aux)
+    // for moving Bg_*/Obj_* mechanics in the current scene. Receivers
+    // match payload entries to local actors by (actorId, home.pos),
+    // which is stable across clients since mechanics are scene-defined.
+    // See MechanicSync.cpp and MechanicSync/Families/*.cpp.
+    inline static const std::string MECHANIC_STATE = "MECHANIC_STATE";
 
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
@@ -443,9 +454,13 @@ class Anchor : public Network {
     void SendPacket_EnemyDeath(uint32_t enemyNetId);
     void SendPacket_EnemyFullSnapshot(uint32_t targetClientId);
 
+    // Mechanic sync (Bg_*/Obj_* moving mechanics)
+    void MechanicSync_TickAuthorityBroadcast();
+
   private:
     uint32_t enemyNetIdCounter = 0;
     uint32_t enemySyncTickCounter = 0;
+    uint32_t mechanicSyncTickCounter = 0;
     // network-id -> Actor* (only valid while actor is alive in current scene)
     std::map<uint32_t, Actor*> enemyNetIdToActor;
 

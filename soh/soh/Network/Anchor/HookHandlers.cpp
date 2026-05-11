@@ -171,6 +171,7 @@ void Anchor::RegisterHooks() {
         EnemySync_TickAuthorityBroadcast();
         EnemySync_TickNonAuthorityLerp();
         EnemySync_TrackEnemyDrops();
+        MechanicSync_TickAuthorityBroadcast();
         SceneFlagsSnapshot_Tick();
 
         // Shared-rupees poll. We avoid hooking Rupees_ChangeBy directly
