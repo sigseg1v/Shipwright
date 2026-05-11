@@ -22,6 +22,12 @@ void ClearACHits(Actor* actor) {
     a->coreCollider.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<BossMo*>(actor);
+    a->tentCollider.base.acFlags |= AC_HIT;
+    a->coreCollider.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_MO, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_MO, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

@@ -21,6 +21,12 @@ void ClearACHits(Actor* actor) {
     a->colCyl2.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnGoma*>(actor);
+    a->colCyl1.base.acFlags |= AC_HIT;
+    a->colCyl2.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_GOMA, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_GOMA, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

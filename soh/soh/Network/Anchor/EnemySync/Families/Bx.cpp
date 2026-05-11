@@ -21,6 +21,12 @@ void ClearACHits(Actor* actor) {
     a->colliderQuad.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnBx*>(actor);
+    a->collider.base.acFlags |= AC_HIT;
+    a->colliderQuad.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BX, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BX, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

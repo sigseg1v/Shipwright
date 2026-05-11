@@ -25,9 +25,13 @@
 // Optional: serializeAI, applyAI for per-family AI state piggybacked
 // on ENEMY_UPDATE (e.g. EnSkb's actionState / breakFlags). May be null.
 //
-// Optional: shouldSpawnLocally — if non-null and returns false, the
-// authority side will skip broadcasting an ENEMY_SPAWN for this actor
-// even though it's syncable. Defaults to "always sync" when null.
+// Optional: setACHits is the authority-side mirror of clearACHits. when
+// a peer reports a hit via ENEMY_DAMAGE, the authority writes the
+// damage into colChkInfo and then calls this to raise AC_HIT on every
+// collider the actor's UpdateDamage / action-dispatch fn polls, so the
+// vanilla AI routes the hit through the stagger / death paths. may be
+// null for families whose AI doesn't gate on AC_HIT (boss scripts that
+// read colChkInfo.damage directly).
 
 struct EnemyFamily {
     s16 actorId;
@@ -35,6 +39,7 @@ struct EnemyFamily {
     void (*clearACHits)(Actor* actor);
     void (*serializeAI)(const Actor* actor, nlohmann::json& payload);
     void (*applyAI)(Actor* actor, const nlohmann::json& payload);
+    void (*setACHits)(Actor* actor);
 };
 
 #endif // NETWORK_ANCHOR_ENEMYSYNC_FAMILY_H

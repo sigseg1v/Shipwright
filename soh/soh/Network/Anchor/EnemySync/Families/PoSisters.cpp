@@ -18,6 +18,11 @@ void ClearACHits(Actor* actor) {
     a->collider.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnPoSisters*>(actor);
+    a->collider.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_PO_SISTERS, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_PO_SISTERS, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

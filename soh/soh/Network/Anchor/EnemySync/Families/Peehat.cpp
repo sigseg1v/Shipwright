@@ -24,6 +24,13 @@ void ClearACHits(Actor* actor) {
     a->colQuad.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnPeehat*>(actor);
+    a->colCylinder.base.acFlags |= AC_HIT;
+    a->colJntSph.base.acFlags |= AC_HIT;
+    a->colQuad.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_PEEHAT, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_PEEHAT, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

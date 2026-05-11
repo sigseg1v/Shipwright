@@ -25,6 +25,14 @@ void ClearACHits(Actor* actor) {
     a->shieldQuad.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<Player*>(actor);
+    a->cylinder.base.acFlags |= AC_HIT;
+    a->meleeWeaponQuads[0].base.acFlags |= AC_HIT;
+    a->meleeWeaponQuads[1].base.acFlags |= AC_HIT;
+    a->shieldQuad.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_TORCH2, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_TORCH2, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

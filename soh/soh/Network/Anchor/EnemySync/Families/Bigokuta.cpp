@@ -24,6 +24,14 @@ void ClearACHits(Actor* actor) {
     }
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnBigokuta*>(actor);
+    a->collider.base.acFlags |= AC_HIT;
+    for (int i = 0; i < 2; i++) {
+        a->cylinder[i].base.acFlags |= AC_HIT;
+    }
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BIGOKUTA, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BIGOKUTA, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

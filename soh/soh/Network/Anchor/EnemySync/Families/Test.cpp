@@ -22,6 +22,13 @@ void ClearACHits(Actor* actor) {
     a->swordCollider.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnTest*>(actor);
+    a->bodyCollider.base.acFlags |= AC_HIT;
+    a->shieldCollider.base.acFlags |= AC_HIT;
+    a->swordCollider.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_TEST, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_TEST, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

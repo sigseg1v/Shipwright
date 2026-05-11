@@ -20,6 +20,12 @@ void ClearACHits(Actor* actor) {
     a->bodyCollider.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnKarebaba*>(actor);
+    a->headCollider.base.acFlags |= AC_HIT;
+    a->bodyCollider.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_KAREBABA, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_KAREBABA, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

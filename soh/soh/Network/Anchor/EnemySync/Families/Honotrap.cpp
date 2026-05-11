@@ -28,6 +28,15 @@ void ClearACHits(Actor* actor) {
     }
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnHonotrap*>(actor);
+    if (actor->params == HONOTRAP_EYE) {
+        a->collider.tris.base.acFlags |= AC_HIT;
+    } else {
+        a->collider.cyl.base.acFlags |= AC_HIT;
+    }
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_HONOTRAP, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_HONOTRAP, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

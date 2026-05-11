@@ -1,5 +1,6 @@
 #include "soh/Network/Anchor/Anchor.h"
 #include "soh/Network/Anchor/EnemySync.h"
+#include "soh/Network/Anchor/EnemySync/Registry.h"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
 #include "soh/OTRGlobals.h"
@@ -7,15 +8,6 @@
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-#include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
-#include "src/overlays/actors/ovl_En_Dekubaba/z_en_dekubaba.h"
-#include "src/overlays/actors/ovl_En_Karebaba/z_en_karebaba.h"
-#include "src/overlays/actors/ovl_En_Dekunuts/z_en_dekunuts.h"
-#include "src/overlays/actors/ovl_En_Goma/z_en_goma.h"
-#define this thisx
-#include "src/overlays/actors/ovl_En_St/z_en_st.h"
-#undef this
-#include "src/overlays/actors/ovl_En_Sw/z_en_sw.h"
 extern "C" {
 extern PlayState* gPlayState;
 }
@@ -28,6 +20,11 @@ extern PlayState* gPlayState;
  * the hit by writing into the actor's collider/colChkInfo, then lets the
  * vanilla AI consume it on the next tick (yielding the correct stagger /
  * stun / death response).
+ *
+ * Per-family AC_HIT flagging is delegated to EnemyFamily::setACHits so the
+ * collider layout for each actor stays in its own Families/<Name>.cpp -- this
+ * file does not need to grow a switch statement (or pull in actor-overlay
+ * headers) for every newly synced enemy.
  */
 
 void Anchor::SendPacket_EnemyDamage(uint32_t enemyNetId, uint32_t targetClientId, u8 damage, u8 damageEffect) {
@@ -65,48 +62,8 @@ void Anchor::HandlePacket_EnemyDamage(nlohmann::json payload) {
     // colChkInfo.damage filled in but no incoming-hit signal, so it never
     // routes through the stagger / death paths -- the damage just sits there
     // until the next real local hit nudges things forward.
-    switch (actor->id) {
-        case ACTOR_EN_SKB: {
-            EnSkb* a = reinterpret_cast<EnSkb*>(actor);
-            a->collider.base.acFlags |= AC_HIT;
-            break;
-        }
-        case ACTOR_EN_DEKUBABA: {
-            EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
-            a->collider.base.acFlags |= AC_HIT;
-            break;
-        }
-        case ACTOR_EN_KAREBABA: {
-            EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
-            a->headCollider.base.acFlags |= AC_HIT;
-            a->bodyCollider.base.acFlags |= AC_HIT;
-            break;
-        }
-        case ACTOR_EN_DEKUNUTS: {
-            EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
-            a->collider.base.acFlags |= AC_HIT;
-            break;
-        }
-        case ACTOR_EN_GOMA: {
-            EnGoma* a = reinterpret_cast<EnGoma*>(actor);
-            a->colCyl1.base.acFlags |= AC_HIT;
-            a->colCyl2.base.acFlags |= AC_HIT;
-            break;
-        }
-        case ACTOR_EN_ST: {
-            EnSt* a = reinterpret_cast<EnSt*>(actor);
-            a->colSph.base.acFlags |= AC_HIT;
-            for (int i = 0; i < 6; i++) {
-                a->colCylinder[i].base.acFlags |= AC_HIT;
-            }
-            break;
-        }
-        case ACTOR_EN_SW: {
-            EnSw* a = reinterpret_cast<EnSw*>(actor);
-            a->collider.base.acFlags |= AC_HIT;
-            break;
-        }
-        default:
-            break;
+    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+    if (family != nullptr && family->setACHits != nullptr) {
+        family->setACHits(actor);
     }
 }

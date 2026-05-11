@@ -31,6 +31,14 @@ void ClearACHits(Actor* actor) {
     }
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnSt*>(actor);
+    a->colSph.base.acFlags |= AC_HIT;
+    for (int i = 0; i < 6; i++) {
+        a->colCylinder[i].base.acFlags |= AC_HIT;
+    }
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_ST, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_ST, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

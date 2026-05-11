@@ -23,6 +23,12 @@ void ClearACHits(Actor* actor) {
     a->unk_444.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<BossGanon2*>(actor);
+    a->unk_424.base.acFlags |= AC_HIT;
+    a->unk_444.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_GANON2, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_GANON2, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

@@ -23,6 +23,13 @@ void ClearACHits(Actor* actor) {
     a->colliderBody.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnDodongo*>(actor);
+    a->colliderAT.base.acFlags |= AC_HIT;
+    a->colliderHard.base.acFlags |= AC_HIT;
+    a->colliderBody.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_DODONGO, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_DODONGO, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

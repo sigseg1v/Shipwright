@@ -25,6 +25,13 @@ void ClearACHits(Actor* actor) {
     a->colliderLightning.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<BossVa*>(actor);
+    a->colliderBody.base.acFlags |= AC_HIT;
+    a->colliderSph.base.acFlags |= AC_HIT;
+    a->colliderLightning.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_VA, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_BOSS_VA, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

@@ -23,6 +23,13 @@ void ClearACHits(Actor* actor) {
     a->colliderCylinderTail.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnWf*>(actor);
+    a->colliderSpheres.base.acFlags |= AC_HIT;
+    a->colliderCylinderBody.base.acFlags |= AC_HIT;
+    a->colliderCylinderTail.base.acFlags |= AC_HIT;
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_WF, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_WF, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

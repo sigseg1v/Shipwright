@@ -28,6 +28,13 @@ void ClearACHits(Actor* actor) {
     }
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnBrob*>(actor);
+    for (int i = 0; i < 2; i++) {
+        a->colliders[i].base.acFlags |= AC_HIT;
+    }
+}
+
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BROB, &RegisterAC, &ClearACHits, nullptr, nullptr }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_BROB, &RegisterAC, &ClearACHits, nullptr, nullptr, &SetACHits }));

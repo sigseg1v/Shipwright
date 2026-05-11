@@ -22,6 +22,11 @@ void ClearACHits(Actor* actor) {
     a->collider.base.acFlags &= ~AC_HIT;
 }
 
+void SetACHits(Actor* actor) {
+    auto* a = reinterpret_cast<EnSkb*>(actor);
+    a->collider.base.acFlags |= AC_HIT;
+}
+
 void SerializeAI(const Actor* actor, nlohmann::json& payload) {
     const auto* a = reinterpret_cast<const EnSkb*>(actor);
     payload["skbActionState"] = a->actionState;
@@ -38,4 +43,4 @@ void ApplyAI(Actor* actor, const nlohmann::json& payload) {
 
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_SKB, &RegisterAC, &ClearACHits, &SerializeAI, &ApplyAI }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_SKB, &RegisterAC, &ClearACHits, &SerializeAI, &ApplyAI, &SetACHits }));
