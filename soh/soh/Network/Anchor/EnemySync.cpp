@@ -21,6 +21,11 @@ extern PlayState* gPlayState;
 // dispatches through the registry rather than growing a switch
 // statement for every new enemy.
 
+// Actor categories we walk for sync. Enemies live in ACTORCAT_ENEMY;
+// bosses live in ACTORCAT_BOSS. Order doesn't matter -- the registry
+// matches on actorId, so each actor only ever dispatches once.
+static const u8 kEnemySyncCategories[] = { ACTORCAT_ENEMY, ACTORCAT_BOSS };
+
 // EnemyNetState definition lives in EnemySync.h; the registration token is
 // here (single TU) so the Id is allocated exactly once.
 static ObjectExtension::Register<EnemyNetState> EnemyNetStateRegister;
@@ -93,40 +98,42 @@ void Anchor::EnemySync_OnSceneSpawnActors() {
 
     bool authority = IsAuthorityForCurrentScene();
 
-    Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
-    while (actor != NULL) {
-        Actor* next = actor->next;
+    for (u8 cat : kEnemySyncCategories) {
+        Actor* actor = gPlayState->actorCtx.actorLists[cat].head;
+        while (actor != NULL) {
+            Actor* next = actor->next;
 
-        if (IsSyncableEnemy(actor)) {
-            EnemyNetState* state = GetOrCreateNetState(actor);
+            if (IsSyncableEnemy(actor)) {
+                EnemyNetState* state = GetOrCreateNetState(actor);
 
-            // Already accounted for: either we broadcast this actor on
-            // a previous pass (authority side) or it was instantiated
-            // locally from a remote ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT
-            // (non-authority side). Skip it; touching state would
-            // either re-broadcast a duplicate or kill a remote-owned
-            // actor we just spawned.
-            if (state->enemyNetId != 0) {
-                actor = next;
-                continue;
+                // Already accounted for: either we broadcast this actor on
+                // a previous pass (authority side) or it was instantiated
+                // locally from a remote ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT
+                // (non-authority side). Skip it; touching state would
+                // either re-broadcast a duplicate or kill a remote-owned
+                // actor we just spawned.
+                if (state->enemyNetId != 0) {
+                    actor = next;
+                    continue;
+                }
+
+                state->isSynced = true;
+                state->isAuthority = authority;
+
+                if (authority) {
+                    state->enemyNetId = MintEnemyNetId();
+                    enemyNetIdToActor[state->enemyNetId] = actor;
+                    SendPacket_EnemySpawn(actor, state->enemyNetId);
+                } else {
+                    // Non-authority: kill the engine-spawned local copy. The
+                    // authority's ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT will
+                    // recreate it.
+                    Actor_Kill(actor);
+                }
             }
 
-            state->isSynced = true;
-            state->isAuthority = authority;
-
-            if (authority) {
-                state->enemyNetId = MintEnemyNetId();
-                enemyNetIdToActor[state->enemyNetId] = actor;
-                SendPacket_EnemySpawn(actor, state->enemyNetId);
-            } else {
-                // Non-authority: kill the engine-spawned local copy. The
-                // authority's ENEMY_SPAWN / ENEMY_FULL_SNAPSHOT will
-                // recreate it.
-                Actor_Kill(actor);
-            }
+            actor = next;
         }
-
-        actor = next;
     }
 }
 
@@ -151,29 +158,31 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
 
     nlohmann::json enemies = nlohmann::json::array();
 
-    Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
-    while (actor != NULL) {
-        if (IsSyncableEnemy(actor)) {
-            EnemyNetState* state = GetOrCreateNetState(actor);
-            if (state->isAuthority && state->enemyNetId != 0) {
-                nlohmann::json e;
-                e["id"] = state->enemyNetId;
-                e["pos"] = actor->world.pos;
-                e["rot"] = actor->shape.rot;
-                e["velX"] = actor->velocity.x;
-                e["velY"] = actor->velocity.y;
-                e["velZ"] = actor->velocity.z;
-                e["hp"] = actor->colChkInfo.health;
+    for (u8 cat : kEnemySyncCategories) {
+        Actor* actor = gPlayState->actorCtx.actorLists[cat].head;
+        while (actor != NULL) {
+            if (IsSyncableEnemy(actor)) {
+                EnemyNetState* state = GetOrCreateNetState(actor);
+                if (state->isAuthority && state->enemyNetId != 0) {
+                    nlohmann::json e;
+                    e["id"] = state->enemyNetId;
+                    e["pos"] = actor->world.pos;
+                    e["rot"] = actor->shape.rot;
+                    e["velX"] = actor->velocity.x;
+                    e["velY"] = actor->velocity.y;
+                    e["velZ"] = actor->velocity.z;
+                    e["hp"] = actor->colChkInfo.health;
 
-                const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
-                if (family != nullptr && family->serializeAI != nullptr) {
-                    family->serializeAI(actor, e);
+                    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+                    if (family != nullptr && family->serializeAI != nullptr) {
+                        family->serializeAI(actor, e);
+                    }
+
+                    enemies.push_back(e);
                 }
-
-                enemies.push_back(e);
             }
+            actor = actor->next;
         }
-        actor = actor->next;
     }
 
     if (enemies.empty()) {
@@ -185,6 +194,14 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
     payload["sceneNum"] = gPlayState->sceneNum;
     payload["enemies"] = enemies;
     payload["quiet"] = true;
+
+    // Diagnostic: log every ~5s (150 ticks at 30Hz). Tick counter + count
+    // gives enough signal to correlate against peer-side receive logs and
+    // server-side relay counters.
+    if ((enemySyncTickCounter & 0x12C) == 0x12C) {
+        SPDLOG_INFO("[Anchor:diag] EnemySync broadcast scene={} count={} tick={}",
+                    gPlayState->sceneNum, (int)enemies.size(), enemySyncTickCounter);
+    }
 
     // Broadcast to room (no targetClientId / targetTeamId): the server will
     // fan out to every other client in the room. Receivers self-filter on
@@ -282,11 +299,12 @@ void Anchor::EnemySync_TickNonAuthorityLerp() {
         return;
     }
 
-    Actor* actor = gPlayState->actorCtx.actorLists[ACTORCAT_ENEMY].head;
-    while (actor != NULL) {
-        if (IsSyncableEnemy(actor)) {
-            EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
-            if (state != nullptr && state->isSynced && !state->isAuthority && state->lerpInterval > 0) {
+    for (u8 cat : kEnemySyncCategories) {
+        Actor* actor = gPlayState->actorCtx.actorLists[cat].head;
+        while (actor != NULL) {
+            if (IsSyncableEnemy(actor)) {
+                EnemyNetState* state = ObjectExtension::GetInstance().Get<EnemyNetState>(actor);
+                if (state != nullptr && state->isSynced && !state->isAuthority && state->lerpInterval > 0) {
                 if (state->lerpFrame < state->lerpInterval) {
                     state->lerpFrame++;
                 }
@@ -303,13 +321,14 @@ void Anchor::EnemySync_TickNonAuthorityLerp() {
                 int16_t dRotX = (int16_t)(state->targetRotX - state->prevRotX);
                 int16_t dRotY = (int16_t)(state->targetRotY - state->prevRotY);
                 int16_t dRotZ = (int16_t)(state->targetRotZ - state->prevRotZ);
-                actor->shape.rot.x = state->prevRotX + (int16_t)(dRotX * alpha);
-                actor->shape.rot.y = state->prevRotY + (int16_t)(dRotY * alpha);
-                actor->shape.rot.z = state->prevRotZ + (int16_t)(dRotZ * alpha);
-                actor->world.rot.y = actor->shape.rot.y;
+                    actor->shape.rot.x = state->prevRotX + (int16_t)(dRotX * alpha);
+                    actor->shape.rot.y = state->prevRotY + (int16_t)(dRotY * alpha);
+                    actor->shape.rot.z = state->prevRotZ + (int16_t)(dRotZ * alpha);
+                    actor->world.rot.y = actor->shape.rot.y;
+                }
             }
+            actor = actor->next;
         }
-        actor = actor->next;
     }
 }
 

@@ -104,6 +104,14 @@ void Anchor::MechanicSync_TickAuthorityBroadcast() {
     payload["mechanics"] = mechanics;
     payload["quiet"] = true;
 
+    // Diagnostic: log every ~5s (75 ticks @ 15Hz). Quoting the tick
+    // counter and scene num gives enough fingerprint to correlate the
+    // outbound batch against a peer-side "Mechanic state apply" log.
+    if ((mechanicSyncTickCounter & 0x12C) == 0x12C) {
+        SPDLOG_INFO("[Anchor:diag] MechanicSync broadcast scene={} count={} tick={}",
+                    gPlayState->sceneNum, (int)mechanics.size(), mechanicSyncTickCounter);
+    }
+
     SendJsonToRemote(payload);
 }
 
@@ -145,6 +153,8 @@ void Anchor::HandlePacket_MechanicState(nlohmann::json payload) {
         }
     }
 
+    int matched = 0;
+    int unmatched = 0;
     for (auto& m : payload["mechanics"]) {
         std::string key = m.value("key", std::string{});
         if (key.empty()) {
@@ -154,8 +164,10 @@ void Anchor::HandlePacket_MechanicState(nlohmann::json payload) {
         if (it == byKey.end() || it->second == nullptr) {
             // Local instance hasn't spawned yet (room async load) or has
             // been killed. Skip; we'll catch up next tick.
+            unmatched++;
             continue;
         }
+        matched++;
         Actor* actor = it->second;
 
         Vec3f pos = m.value("pos", Vec3f{ 0, 0, 0 });
@@ -168,5 +180,15 @@ void Anchor::HandlePacket_MechanicState(nlohmann::json payload) {
         if (family != nullptr && family->applyAux != nullptr) {
             family->applyAux(actor, m);
         }
+    }
+
+    // Log if any payload entries failed to match a local actor: usually
+    // means a scene-spawn race or a missing family registration for an
+    // actor the authority is broadcasting. Always log when nonzero so
+    // mismatched authority/peer scenes are visible without setting log
+    // level to DEBUG.
+    if (unmatched > 0) {
+        SPDLOG_INFO("[Anchor:diag] MechanicSync apply scene={} matched={} unmatched={}",
+                    sceneNum, matched, unmatched);
     }
 }
