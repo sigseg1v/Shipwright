@@ -372,27 +372,48 @@ void Anchor::EnemySync_TickNonAuthorityLerp() {
     }
 }
 
-// Non-authority: the per-family AC collider has to be (re)registered with
+// Non-authority: per-family colliders have to be (re)registered with
 // the collision check context every frame so the engine's
-// CollisionCheck_AC pass actually tests Player's sword AT against this
-// enemy. Vanilla actors do this from inside their own update fn (see
-// e.g. z_en_skb.c:520), but we suppress that update on non-authority --
-// without re-registering here, AC_HIT would never get set, the local
-// damage forward in EnemySync_HandleNonAuthorityHit would always see
-// damage==0, and the authority side would never learn about the hit.
+// CollisionCheck_AC / CollisionCheck_AT passes actually test against
+// this enemy. Vanilla actors do this from inside their own update fn
+// (see e.g. z_en_skb.c:514/520), but we suppress that update on non-
+// authority -- without re-registering here, AC_HIT would never get
+// set (so peer hits never forward to authority), and AT collisions
+// against the player would never fire (so the peer's player would
+// walk through enemies untouched).
 //
-// We also force AC_ON and clear AC_HARD on every collider before
+// We also force AC_ON+AT_ON and clear AC_HARD on every collider before
 // registering. The actor's update fn is what normally toggles those
 // flags between hittable and "block all damage" states (e.g. Deku Baba
-// in its retracted Wait state sets AC_HARD so swords bounce off), but
-// since we suppress the update on non-authority, the flags would stay
-// stuck at whatever the engine seeded them with on init -- which for
-// Deku Baba means AC_HARD always, so the player can never land a hit
-// to forward to authority. The authority side runs vanilla AI so its
-// own collider state stays correct; we only diverge here on peers.
-static inline void RegisterCollider(Collider* base) {
+// in its retracted Wait state sets AC_HARD so swords bounce off; some
+// enemies gate AT on by attack state). Since we suppress the update
+// on peers, the flags would stay stuck at whatever the engine seeded
+// them with on init. Authority runs vanilla AI so its own collider
+// state stays correct; we only diverge here on peers. The trade-off
+// is that peers may take touch damage from enemies whose authority
+// considers them currently inactive (e.g. retracted Karebaba) -- a
+// minor mechanical desync acceptable for v1.
+//
+// For ColliderCylinder we also call Collider_UpdateCylinder so the
+// collider's stored position tracks actor->world.pos (which is being
+// LERPed every frame from ENEMY_UPDATE). Without this the collider
+// stays at the spawn position and AC/AT both check against stale
+// coordinates. ColliderJntSph positions are updated from inside the
+// actor's draw fn (still runs on peer), so no manual update needed.
+static inline void RegisterColliderCommon(Collider* base) {
     base->acFlags = (base->acFlags | AC_ON) & ~AC_HARD;
+    base->atFlags |= AT_ON;
     CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, base);
+    CollisionCheck_SetAT(gPlayState, &gPlayState->colChkCtx, base);
+}
+
+static inline void RegisterCyl(Actor* actor, ColliderCylinder* c) {
+    Collider_UpdateCylinder(actor, c);
+    RegisterColliderCommon(&c->base);
+}
+
+static inline void RegisterJntSph(ColliderJntSph* c) {
+    RegisterColliderCommon(&c->base);
 }
 
 void Anchor::EnemySync_RegisterAC(Actor* actor) {
@@ -402,42 +423,42 @@ void Anchor::EnemySync_RegisterAC(Actor* actor) {
     switch (actor->id) {
         case ACTOR_EN_SKB: {
             EnSkb* a = reinterpret_cast<EnSkb*>(actor);
-            RegisterCollider(&a->collider.base);
+            RegisterJntSph(&a->collider);
             break;
         }
         case ACTOR_EN_DEKUBABA: {
             EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
-            RegisterCollider(&a->collider.base);
+            RegisterJntSph(&a->collider);
             break;
         }
         case ACTOR_EN_KAREBABA: {
             EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
-            RegisterCollider(&a->headCollider.base);
-            RegisterCollider(&a->bodyCollider.base);
+            RegisterCyl(actor, &a->headCollider);
+            RegisterCyl(actor, &a->bodyCollider);
             break;
         }
         case ACTOR_EN_DEKUNUTS: {
             EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
-            RegisterCollider(&a->collider.base);
+            RegisterCyl(actor, &a->collider);
             break;
         }
         case ACTOR_EN_GOMA: {
             EnGoma* a = reinterpret_cast<EnGoma*>(actor);
-            RegisterCollider(&a->colCyl1.base);
-            RegisterCollider(&a->colCyl2.base);
+            RegisterCyl(actor, &a->colCyl1);
+            RegisterCyl(actor, &a->colCyl2);
             break;
         }
         case ACTOR_EN_ST: {
             EnSt* a = reinterpret_cast<EnSt*>(actor);
-            RegisterCollider(&a->colSph.base);
+            RegisterJntSph(&a->colSph);
             for (int i = 0; i < 6; i++) {
-                RegisterCollider(&a->colCylinder[i].base);
+                RegisterCyl(actor, &a->colCylinder[i]);
             }
             break;
         }
         case ACTOR_EN_SW: {
             EnSw* a = reinterpret_cast<EnSw*>(actor);
-            RegisterCollider(&a->collider.base);
+            RegisterJntSph(&a->collider);
             break;
         }
         default:
