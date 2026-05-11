@@ -14,6 +14,7 @@ extern "C" {
 #include "src/overlays/actors/ovl_En_Dekubaba/z_en_dekubaba.h"
 #include "src/overlays/actors/ovl_En_Karebaba/z_en_karebaba.h"
 #include "src/overlays/actors/ovl_En_Dekunuts/z_en_dekunuts.h"
+#include "src/overlays/actors/ovl_En_Hintnuts/z_en_hintnuts.h"
 #include "src/overlays/actors/ovl_En_Goma/z_en_goma.h"
 // z_en_st.h declares an action-func typedef using `this` as the parameter
 // name, which is a reserved word in C++. Locally rename it during include
@@ -54,6 +55,7 @@ static bool IsSyncableEnemy(const Actor* actor) {
         case ACTOR_EN_DEKUBABA:  // Deku Baba (deku stick plant)
         case ACTOR_EN_KAREBABA:  // Big/Withered Deku Baba
         case ACTOR_EN_DEKUNUTS:  // Mad Scrub
+        case ACTOR_EN_HINTNUTS:  // Deku Scrub (puzzle/hint variant)
         case ACTOR_EN_GOMA:      // Gohma Larva
         case ACTOR_EN_ST:        // Skulltula (web-hanging)
         case ACTOR_EN_SW:        // Skullwalltula (wall-crawler)
@@ -285,6 +287,11 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
             a->collider.base.acFlags &= ~AC_HIT;
             break;
         }
+        case ACTOR_EN_HINTNUTS: {
+            EnHintnuts* a = reinterpret_cast<EnHintnuts*>(actor);
+            a->collider.base.acFlags &= ~AC_HIT;
+            break;
+        }
         case ACTOR_EN_GOMA: {
             EnGoma* a = reinterpret_cast<EnGoma*>(actor);
             a->colCyl1.base.acFlags &= ~AC_HIT;
@@ -439,6 +446,11 @@ void Anchor::EnemySync_RegisterAC(Actor* actor) {
         }
         case ACTOR_EN_DEKUNUTS: {
             EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
+            RegisterCyl(actor, &a->collider);
+            break;
+        }
+        case ACTOR_EN_HINTNUTS: {
+            EnHintnuts* a = reinterpret_cast<EnHintnuts*>(actor);
             RegisterCyl(actor, &a->collider);
             break;
         }
