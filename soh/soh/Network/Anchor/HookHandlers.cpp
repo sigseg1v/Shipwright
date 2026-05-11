@@ -515,6 +515,54 @@ void Anchor::RegisterHooks() {
     COND_HOOK(OnSceneFlagUnset, isConnected,
               [&](s16 sceneNum, s16 flagType, s16 flag) { SendPacket_UnsetFlag(sceneNum, flagType, flag); });
 
+    // Diagnostic logging for multiplayer sync investigation.
+    // Logs every actor init/destroy and every scene-flag / global-flag
+    // flip while connected. Lets us diff the two clients' logs to find
+    // events that fire on one side but not the other (e.g. a falling
+    // platform actor that only one client triggers, a switch flag
+    // raised on the authority but never replicated to the peer).
+    //
+    // Uses [Anchor:diag:actor] / [Anchor:diag:flag] tags so the logs
+    // can be cleanly grepped. Verbose by design -- toggle off via the
+    // CVar if it gets in the way.
+    COND_HOOK(OnActorInit, isConnected, [&](void* refActor) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        if (gPlayState == nullptr) return;
+        Actor* actor = (Actor*)refActor;
+        SPDLOG_INFO("[Anchor:diag:actor] init id=0x{:04x} params=0x{:04x} cat={} scene={} room={} pos=({:.1f},{:.1f},{:.1f})",
+                    actor->id, (u16)actor->params, actor->category, gPlayState->sceneNum,
+                    actor->room, actor->world.pos.x, actor->world.pos.y, actor->world.pos.z);
+    });
+
+    COND_HOOK(OnActorDestroy, isConnected, [&](void* refActor) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        if (gPlayState == nullptr) return;
+        Actor* actor = (Actor*)refActor;
+        SPDLOG_INFO("[Anchor:diag:actor] destroy id=0x{:04x} params=0x{:04x} cat={} scene={} room={} pos=({:.1f},{:.1f},{:.1f})",
+                    actor->id, (u16)actor->params, actor->category, gPlayState->sceneNum,
+                    actor->room, actor->world.pos.x, actor->world.pos.y, actor->world.pos.z);
+    });
+
+    COND_HOOK(OnSceneFlagSet, isConnected, [&](s16 sceneNum, s16 flagType, s16 flag) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        SPDLOG_INFO("[Anchor:diag:flag] sceneSet scene={} type={} flag=0x{:x}", sceneNum, flagType, flag);
+    });
+
+    COND_HOOK(OnSceneFlagUnset, isConnected, [&](s16 sceneNum, s16 flagType, s16 flag) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        SPDLOG_INFO("[Anchor:diag:flag] sceneUnset scene={} type={} flag=0x{:x}", sceneNum, flagType, flag);
+    });
+
+    COND_HOOK(OnFlagSet, isConnected, [&](s16 flagType, s16 flag) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        SPDLOG_INFO("[Anchor:diag:flag] globalSet type={} flag=0x{:x}", flagType, flag);
+    });
+
+    COND_HOOK(OnFlagUnset, isConnected, [&](s16 flagType, s16 flag) {
+        if (!CVarGetInteger(CVAR_REMOTE_ANCHOR("DiagSync"), 1)) return;
+        SPDLOG_INFO("[Anchor:diag:flag] globalUnset type={} flag=0x{:x}", flagType, flag);
+    });
+
     COND_HOOK(OnRandoSetCheckStatus, isConnected, [&](RandomizerCheck rc, RandomizerCheckStatus status) {
         if (!isHandlingUpdateTeamState) {
             SendPacket_SetCheckStatus(rc);
