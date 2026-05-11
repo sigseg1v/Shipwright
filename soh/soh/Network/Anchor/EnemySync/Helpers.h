@@ -1,6 +1,18 @@
 #ifndef NETWORK_ANCHOR_ENEMYSYNC_HELPERS_H
 #define NETWORK_ANCHOR_ENEMYSYNC_HELPERS_H
 
+// Pre-resolve every C++ stdlib header that libultraship's resourcebridge
+// transitively pulls in. Several boss overlay headers (z_boss_*.h) and
+// z_en_st.h include "global.h" -> libultraship bridge -> <variant> /
+// <optional> / etc., and the family .cpp files include those overlay
+// headers under a `#define this thisx` to dodge the OoT typedef that
+// names a struct pointer "this". If <variant> first parses while that
+// define is live, its member functions become `thisx->emplace(...)` and
+// the build dies in libstdc++. Pulling libultraship.h in here, before
+// any family file gets a chance to `#define this`, lets the header
+// guards short-circuit the later transitive include.
+#include <libultraship/libultraship.h>
+
 // z64.h / macros.h / functions.h / variables.h each contain their own
 // `#ifdef __cplusplus extern "C"` blocks. Wrapping them again in an
 // outer extern "C" makes z64.h's `#include <memory>` (which lives inside
@@ -30,7 +42,7 @@ inline void RegisterColliderCommon(Collider* base) {
 }
 
 // ColliderCylinders need their stored position refreshed because we
-// LERP actor->world.pos every frame from ENEMY_UPDATE; without
+// overwrite actor->world.pos from each ENEMY_UPDATE; without
 // Collider_UpdateCylinder the collider stays at the spawn pose and AC
 // checks miss the visible enemy.
 inline void RegisterCyl(Actor* actor, ColliderCylinder* c) {

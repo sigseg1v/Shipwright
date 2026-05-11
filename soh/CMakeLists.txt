@@ -579,6 +579,14 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
             -Wno-array-bounds
             -Wno-stringop-overflow
             -Wno-maybe-uninitialized
+            # second wave of pre-existing soh noise: incomplete switch
+            # coverage on rando enums, ImGui::Text("") calls, mixed
+            # enum/int ternaries, harmless statement-with-no-effect
+            # widget refs, and macro redefinitions inside
+            # randomizerEnumStrings.cpp's two-pass include trick.
+            -Wno-switch
+            -Wno-format-zero-length
+            -Wno-unused-value
             $<$<COMPILE_LANGUAGE:C>:
                 -Werror-implicit-function-declaration
                 -Wno-implicit-int
