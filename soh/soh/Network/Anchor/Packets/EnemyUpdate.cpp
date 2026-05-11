@@ -1,5 +1,6 @@
 #include "soh/Network/Anchor/Anchor.h"
 #include "soh/Network/Anchor/EnemySync.h"
+#include "soh/Network/Anchor/EnemySync/Registry.h"
 #include "soh/Network/Anchor/JsonConversions.hpp"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
@@ -10,7 +11,6 @@ extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-#include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
 extern PlayState* gPlayState;
 }
 
@@ -96,11 +96,9 @@ void Anchor::HandlePacket_EnemyUpdate(nlohmann::json payload) {
         actor->velocity.z = e.value("velZ", 0.0f);
         actor->colChkInfo.health = e.value("hp", (u8)0);
 
-        if (actor->id == ACTOR_EN_SKB) {
-            EnSkb* skb = reinterpret_cast<EnSkb*>(actor);
-            skb->actionState = e.value("skbActionState", (u8)0);
-            skb->breakFlags = e.value("skbBreakFlags", (u8)0);
-            skb->headlessYawOffset = e.value("skbHeadlessYaw", (s16)0);
+        const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+        if (family != nullptr && family->applyAI != nullptr) {
+            family->applyAI(actor, e);
         }
     }
 }

@@ -1,5 +1,6 @@
 #include "Anchor.h"
 #include "EnemySync.h"
+#include "EnemySync/Registry.h"
 #include "JsonConversions.hpp"
 #include <nlohmann/json.hpp>
 #include <libultraship/libultraship.h>
@@ -10,22 +11,15 @@ extern "C" {
 #include "macros.h"
 #include "variables.h"
 #include "functions.h"
-#include "src/overlays/actors/ovl_En_Skb/z_en_skb.h"
-#include "src/overlays/actors/ovl_En_Dekubaba/z_en_dekubaba.h"
-#include "src/overlays/actors/ovl_En_Karebaba/z_en_karebaba.h"
-#include "src/overlays/actors/ovl_En_Dekunuts/z_en_dekunuts.h"
-#include "src/overlays/actors/ovl_En_Hintnuts/z_en_hintnuts.h"
-#include "src/overlays/actors/ovl_En_Goma/z_en_goma.h"
-// z_en_st.h declares an action-func typedef using `this` as the parameter
-// name, which is a reserved word in C++. Locally rename it during include
-// only -- the redefinition is identifier-name only, so the struct layout
-// and any `this` callers in .c files are unaffected.
-#define this thisx
-#include "src/overlays/actors/ovl_En_St/z_en_st.h"
-#undef this
-#include "src/overlays/actors/ovl_En_Sw/z_en_sw.h"
 extern PlayState* gPlayState;
 }
+
+// Per-actor sync logic (collider register, AC clear, optional AI field
+// serialize/apply) lives in EnemySync/Families/<Family>.cpp -- one file
+// per actor family, each pushing an EnemyFamily entry into
+// EnemyFamilyRegistry via static initializer. Code in this file
+// dispatches through the registry rather than growing a switch
+// statement for every new enemy.
 
 // EnemyNetState definition lives in EnemySync.h; the registration token is
 // here (single TU) so the Id is allocated exactly once.
@@ -40,29 +34,15 @@ static EnemyNetState* GetOrCreateNetState(Actor* actor) {
     return state;
 }
 
-// Actor types covered by host-authoritative sync. Adding an entry here is
-// the minimum to start syncing pos/rot/hp/vel; per-family AI fields (like
-// Stalchild's actionState) need their own branch in the spawn/update
-// handlers as well. Visible animation may stutter on non-authority for
-// actors whose anim is driven inside their update fn -- that's the known
-// v1 gap noted in planning/oot-coop-enemy-sync-plan.md (Phase 3 polish).
+// Membership lookup for host-authoritative sync. Identity of "synced"
+// actor families is owned by the registry; adding a new family is a
+// matter of dropping a Families/<Name>.cpp file rather than editing
+// this function.
 static bool IsSyncableEnemy(const Actor* actor) {
     if (actor == nullptr) {
         return false;
     }
-    switch (actor->id) {
-        case ACTOR_EN_SKB:       // Stalchild
-        case ACTOR_EN_DEKUBABA:  // Deku Baba (deku stick plant)
-        case ACTOR_EN_KAREBABA:  // Big/Withered Deku Baba
-        case ACTOR_EN_DEKUNUTS:  // Mad Scrub
-        case ACTOR_EN_HINTNUTS:  // Deku Scrub (puzzle/hint variant)
-        case ACTOR_EN_GOMA:      // Gohma Larva
-        case ACTOR_EN_ST:        // Skulltula (web-hanging)
-        case ACTOR_EN_SW:        // Skullwalltula (wall-crawler)
-            return true;
-        default:
-            return false;
-    }
+    return EnemyFamilyRegistry::Find(actor->id) != nullptr;
 }
 
 // Reads the server-elected authority for `sceneNum` from the
@@ -185,11 +165,9 @@ void Anchor::EnemySync_TickAuthorityBroadcast() {
                 e["velZ"] = actor->velocity.z;
                 e["hp"] = actor->colChkInfo.health;
 
-                if (actor->id == ACTOR_EN_SKB) {
-                    EnSkb* skb = reinterpret_cast<EnSkb*>(actor);
-                    e["skbActionState"] = skb->actionState;
-                    e["skbBreakFlags"] = skb->breakFlags;
-                    e["skbHeadlessYaw"] = skb->headlessYawOffset;
+                const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+                if (family != nullptr && family->serializeAI != nullptr) {
+                    family->serializeAI(actor, e);
                 }
 
                 enemies.push_back(e);
@@ -265,54 +243,10 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
     // re-forward every frame until the engine clears it some other way.
     actor->colChkInfo.damage = 0;
     actor->colChkInfo.damageEffect = 0;
-    switch (actor->id) {
-        case ACTOR_EN_SKB: {
-            EnSkb* a = reinterpret_cast<EnSkb*>(actor);
-            a->collider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_DEKUBABA: {
-            EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
-            a->collider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_KAREBABA: {
-            EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
-            a->headCollider.base.acFlags &= ~AC_HIT;
-            a->bodyCollider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_DEKUNUTS: {
-            EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
-            a->collider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_HINTNUTS: {
-            EnHintnuts* a = reinterpret_cast<EnHintnuts*>(actor);
-            a->collider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_GOMA: {
-            EnGoma* a = reinterpret_cast<EnGoma*>(actor);
-            a->colCyl1.base.acFlags &= ~AC_HIT;
-            a->colCyl2.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        case ACTOR_EN_ST: {
-            EnSt* a = reinterpret_cast<EnSt*>(actor);
-            a->colSph.base.acFlags &= ~AC_HIT;
-            for (int i = 0; i < 6; i++) {
-                a->colCylinder[i].base.acFlags &= ~AC_HIT;
-            }
-            break;
-        }
-        case ACTOR_EN_SW: {
-            EnSw* a = reinterpret_cast<EnSw*>(actor);
-            a->collider.base.acFlags &= ~AC_HIT;
-            break;
-        }
-        default:
-            break;
+
+    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+    if (family != nullptr && family->clearACHits != nullptr) {
+        family->clearACHits(actor);
     }
 }
 
@@ -407,74 +341,18 @@ void Anchor::EnemySync_TickNonAuthorityLerp() {
 // stays at the spawn position and AC/AT both check against stale
 // coordinates. ColliderJntSph positions are updated from inside the
 // actor's draw fn (still runs on peer), so no manual update needed.
-static inline void RegisterColliderCommon(Collider* base) {
-    base->acFlags = (base->acFlags | AC_ON) & ~AC_HARD;
-    base->atFlags |= AT_ON;
-    CollisionCheck_SetAC(gPlayState, &gPlayState->colChkCtx, base);
-    CollisionCheck_SetAT(gPlayState, &gPlayState->colChkCtx, base);
-}
-
-static inline void RegisterCyl(Actor* actor, ColliderCylinder* c) {
-    Collider_UpdateCylinder(actor, c);
-    RegisterColliderCommon(&c->base);
-}
-
-static inline void RegisterJntSph(ColliderJntSph* c) {
-    RegisterColliderCommon(&c->base);
-}
+//
+// The actual per-collider register calls live in EnemySync/Helpers.h
+// (RegisterCyl / RegisterJntSph / RegisterColliderCommon) so each
+// Families/<Name>.cpp can call into them without needing this file.
 
 void Anchor::EnemySync_RegisterAC(Actor* actor) {
     if (actor == nullptr || gPlayState == nullptr) {
         return;
     }
-    switch (actor->id) {
-        case ACTOR_EN_SKB: {
-            EnSkb* a = reinterpret_cast<EnSkb*>(actor);
-            RegisterJntSph(&a->collider);
-            break;
-        }
-        case ACTOR_EN_DEKUBABA: {
-            EnDekubaba* a = reinterpret_cast<EnDekubaba*>(actor);
-            RegisterJntSph(&a->collider);
-            break;
-        }
-        case ACTOR_EN_KAREBABA: {
-            EnKarebaba* a = reinterpret_cast<EnKarebaba*>(actor);
-            RegisterCyl(actor, &a->headCollider);
-            RegisterCyl(actor, &a->bodyCollider);
-            break;
-        }
-        case ACTOR_EN_DEKUNUTS: {
-            EnDekunuts* a = reinterpret_cast<EnDekunuts*>(actor);
-            RegisterCyl(actor, &a->collider);
-            break;
-        }
-        case ACTOR_EN_HINTNUTS: {
-            EnHintnuts* a = reinterpret_cast<EnHintnuts*>(actor);
-            RegisterCyl(actor, &a->collider);
-            break;
-        }
-        case ACTOR_EN_GOMA: {
-            EnGoma* a = reinterpret_cast<EnGoma*>(actor);
-            RegisterCyl(actor, &a->colCyl1);
-            RegisterCyl(actor, &a->colCyl2);
-            break;
-        }
-        case ACTOR_EN_ST: {
-            EnSt* a = reinterpret_cast<EnSt*>(actor);
-            RegisterJntSph(&a->colSph);
-            for (int i = 0; i < 6; i++) {
-                RegisterCyl(actor, &a->colCylinder[i]);
-            }
-            break;
-        }
-        case ACTOR_EN_SW: {
-            EnSw* a = reinterpret_cast<EnSw*>(actor);
-            RegisterJntSph(&a->collider);
-            break;
-        }
-        default:
-            break;
+    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+    if (family != nullptr && family->registerAC != nullptr) {
+        family->registerAC(actor);
     }
 }
 
