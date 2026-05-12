@@ -25,8 +25,11 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<BossGanondrof*>(actor);
-    a->colliderBody.base.acFlags |= AC_HIT;
-    a->colliderSpear.base.acFlags |= AC_HIT;
+    // Phantom Ganon reads colliderBody.info.acHitInfo->toucher.dmgFlags
+    // when AC_HIT is set (shared path with Boss_Ganon); seed acHitInfo
+    // for both colliders too.
+    EnemySyncHelpers::SetCylAcHit(&a->colliderBody);
+    EnemySyncHelpers::SetCylAcHit(&a->colliderSpear);
 }
 
 }  // namespace

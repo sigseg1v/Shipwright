@@ -26,9 +26,11 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<EnBigokuta*>(actor);
-    a->collider.base.acFlags |= AC_HIT;
+    // En_Bigokuta reads collider.elements[0].info.acHitInfo->toucher.dmgFlags
+    // when AC_HIT is observed; seed acHitInfo too.
+    EnemySyncHelpers::SetJntSphAcHit(&a->collider);
     for (int i = 0; i < 2; i++) {
-        a->cylinder[i].base.acFlags |= AC_HIT;
+        EnemySyncHelpers::SetCylAcHit(&a->cylinder[i]);
     }
 }
 

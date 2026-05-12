@@ -33,9 +33,13 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<EnSt*>(actor);
-    a->colSph.base.acFlags |= AC_HIT;
+    // EnSt_CheckHitBackside reads colCylinder[0..1].info.acHitInfo->toucher.dmgFlags
+    // the moment it sees AC_HIT, so we must seed acHitInfo as well. Use
+    // the helper for every cylinder + the body sphere so any future read
+    // in this family stays crash-safe.
+    EnemySyncHelpers::SetJntSphAcHit(&a->colSph);
     for (int i = 0; i < 6; i++) {
-        a->colCylinder[i].base.acFlags |= AC_HIT;
+        EnemySyncHelpers::SetCylAcHit(&a->colCylinder[i]);
     }
 }
 

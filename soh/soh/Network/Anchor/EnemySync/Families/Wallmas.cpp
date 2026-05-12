@@ -20,7 +20,9 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<EnWallmas*>(actor);
-    a->collider.base.acFlags |= AC_HIT;
+    // En_Wallmas reads collider.info.acHitInfo->toucher.dmgFlags when
+    // AC_HIT is set; seed acHitInfo too.
+    EnemySyncHelpers::SetCylAcHit(&a->collider);
 }
 
 }  // namespace

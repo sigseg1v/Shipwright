@@ -56,6 +56,41 @@ inline void RegisterJntSph(ColliderJntSph* c) {
     RegisterColliderCommon(&c->base);
 }
 
+// Static placeholder used when we raise AC_HIT manually from a synced
+// ENEMY_DAMAGE packet. Engine-driven AC hits would have CollisionCheck_AC
+// fill in `info.acHitInfo` with the attacker's element; several enemy
+// overlays (e.g. EnSt_CheckHitBackside) then dereference
+// `info.acHitInfo->toucher.dmgFlags` the moment they see AC_HIT. Without a
+// non-NULL pointer here the authority crashes on the very next Update.
+// Zero-initialized so `dmgFlags == 0` -- the actor routes through its
+// generic melee path rather than the arrow / fire / light death variant,
+// which is a reasonable fallback until we plumb the attacker's real
+// dmgFlags through the packet.
+inline ColliderInfo& AcHitDummy() {
+    static ColliderInfo dummy = {};
+    return dummy;
+}
+
+// Set AC_HIT on a cylinder collider and point its acHitInfo at the
+// dummy. Use this from EnemyFamily::setACHits instead of poking
+// `c->base.acFlags |= AC_HIT` directly when the overlay reads
+// `info.acHitInfo` in its damage handler.
+inline void SetCylAcHit(ColliderCylinder* c) {
+    c->base.acFlags |= AC_HIT;
+    c->info.acHitInfo = &AcHitDummy();
+}
+
+// JntSph version: also points every element's per-info acHitInfo at the
+// dummy. Most overlays only read the base AC_HIT for JntSph, but the
+// element pointer is cheap to seed and saves us from a future crash if
+// a family member ever does dereference it.
+inline void SetJntSphAcHit(ColliderJntSph* c) {
+    c->base.acFlags |= AC_HIT;
+    for (int i = 0; i < c->count; i++) {
+        c->elements[i].info.acHitInfo = &AcHitDummy();
+    }
+}
+
 }  // namespace EnemySyncHelpers
 
 #endif  // NETWORK_ANCHOR_ENEMYSYNC_HELPERS_H

@@ -22,8 +22,10 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<EnPoField*>(actor);
-    a->collider.base.acFlags |= AC_HIT;
-    a->flameCollider.base.acFlags |= AC_HIT;
+    // En_Po_Field reads collider.info.acHitInfo->toucher.dmgFlags when
+    // it sees AC_HIT; seed acHitInfo too.
+    EnemySyncHelpers::SetCylAcHit(&a->collider);
+    EnemySyncHelpers::SetCylAcHit(&a->flameCollider);
 }
 
 }  // namespace

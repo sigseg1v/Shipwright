@@ -22,7 +22,9 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<BossFd*>(actor);
-    a->collider.base.acFlags |= AC_HIT;
+    // Boss_Fd reads collider.elements[head].info.acHitInfo when AC_HIT
+    // is set; seed acHitInfo too.
+    EnemySyncHelpers::SetJntSphAcHit(&a->collider);
 }
 
 }  // namespace

@@ -22,7 +22,9 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<BossGanon*>(actor);
-    a->collider.base.acFlags |= AC_HIT;
+    // Boss_Ganon reads collider.info.acHitInfo->toucher.dmgFlags when
+    // AC_HIT is set; seed acHitInfo too.
+    EnemySyncHelpers::SetCylAcHit(&a->collider);
 }
 
 }  // namespace

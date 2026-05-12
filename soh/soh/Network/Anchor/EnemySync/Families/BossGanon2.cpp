@@ -25,8 +25,10 @@ void ClearACHits(Actor* actor) {
 
 void SetACHits(Actor* actor) {
     auto* a = reinterpret_cast<BossGanon2*>(actor);
-    a->unk_424.base.acFlags |= AC_HIT;
-    a->unk_444.base.acFlags |= AC_HIT;
+    // Boss_Ganon2 reads element[0].info.acHitInfo when AC_HIT is set;
+    // seed acHitInfo for both spheres.
+    EnemySyncHelpers::SetJntSphAcHit(&a->unk_424);
+    EnemySyncHelpers::SetJntSphAcHit(&a->unk_444);
 }
 
 }  // namespace
