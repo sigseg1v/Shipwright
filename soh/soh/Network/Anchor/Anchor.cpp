@@ -127,7 +127,7 @@ void Anchor::OnIncomingJson(nlohmann::json payload) {
                         packetType == ITEM_COLLECT;
     bool isWorldEventPacket = packetType == SIGN_CUT || packetType == TORCH_STATE;
     bool isSceneFlagsPacket = packetType == SCENE_FLAGS;
-    bool isMechanicSyncPacket = packetType == MECHANIC_STATE;
+    bool isMechanicSyncPacket = packetType == MECHANIC_STATE || packetType == MECHANIC_DESTROYED;
 
     // Ignore packets from mismatched clients, except for ALL_CLIENT_STATE, UPDATE_CLIENT_STATE, and PLAYER_UPDATE
     if (packetType != ALL_CLIENT_STATE && packetType != UPDATE_CLIENT_STATE && packetType != PLAYER_UPDATE &&
@@ -296,6 +296,8 @@ void Anchor::ProcessIncomingPacketQueue() {
                 HandlePacket_SceneFlags(payload);
             else if (packetType == MECHANIC_STATE)
                 HandlePacket_MechanicState(payload);
+            else if (packetType == MECHANIC_DESTROYED)
+                HandlePacket_MechanicDestroyed(payload);
         } catch (const std::exception& e) {
             SPDLOG_ERROR("[Anchor] Exception while processing incoming packet {}", e.what());
             SPDLOG_ERROR("[Anchor] Packet: {}", payload.dump());

@@ -192,3 +192,53 @@ void Anchor::HandlePacket_MechanicState(nlohmann::json payload) {
                     sceneNum, matched, unmatched);
     }
 }
+
+// Authority-side, one-shot. Called from OnActorKill for mechanic
+// families that permanently destruct (e.g. Obj_Lift falling). We send
+// the same (actorId, home.pos) key the streaming MECHANIC_STATE uses
+// so peers can resolve it back to their local instance.
+void Anchor::SendPacket_MechanicDestroyed(s16 sceneNum, s16 actorId, f32 homeX, f32 homeY, f32 homeZ) {
+    if (!IsSaveLoaded() || !isConnected) {
+        return;
+    }
+    nlohmann::json payload;
+    payload["type"] = MECHANIC_DESTROYED;
+    payload["sceneNum"] = sceneNum;
+    payload["key"] = MechanicSync_MakeKey(actorId, homeX, homeY, homeZ);
+    SendJsonToRemote(payload);
+}
+
+// Receiver: matches the key against local actors in the current scene
+// and kills the one that matches. Unlike MECHANIC_STATE this is not
+// gated on `!IsAuthorityForCurrentScene()` -- the server is gating
+// who sends, and if we receive one for our own scene we should still
+// honor it (it shouldn't happen, but the alternative is two clients
+// where one's lift is dead and the other's is alive forever).
+void Anchor::HandlePacket_MechanicDestroyed(nlohmann::json payload) {
+    if (!IsSaveLoaded()) {
+        return;
+    }
+    s16 sceneNum = payload.value("sceneNum", (s16)SCENE_ID_MAX);
+    if (sceneNum != gPlayState->sceneNum) {
+        return;
+    }
+    std::string key = payload.value("key", std::string{});
+    if (key.empty()) {
+        return;
+    }
+
+    for (u8 cat : kMechanicCategories) {
+        Actor* actor = gPlayState->actorCtx.actorLists[cat].head;
+        while (actor != NULL) {
+            Actor* next = actor->next;
+            if (MechanicFamilyRegistry::Find(actor->id) != nullptr) {
+                std::string localKey = MechanicSync_MakeKey(actor->id, actor->home.pos.x, actor->home.pos.y,
+                                                            actor->home.pos.z);
+                if (localKey == key) {
+                    Actor_Kill(actor);
+                }
+            }
+            actor = next;
+        }
+    }
+}

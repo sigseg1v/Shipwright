@@ -145,6 +145,7 @@ class Anchor : public Network {
     void HandlePacket_TorchState(nlohmann::json payload);
     void HandlePacket_SceneFlags(nlohmann::json payload);
     void HandlePacket_MechanicState(nlohmann::json payload);
+    void HandlePacket_MechanicDestroyed(nlohmann::json payload);
 
   public:
     uint32_t ownClientId;
@@ -301,6 +302,15 @@ class Anchor : public Network {
     // See MechanicSync.cpp and MechanicSync/Families/*.cpp.
     inline static const std::string MECHANIC_STATE = "MECHANIC_STATE";
 
+    // Authority -> peers, one-shot. Fired from OnActorKill on the
+    // authority for mechanic families whose vanilla destruction is a
+    // permanent state transition (Obj_Lift falls and dies, the door it
+    // exposed stays open). Peers find the local actor by the same
+    // (actorId, home.pos) key MECHANIC_STATE uses and Actor_Kill it so
+    // both clients lose the platform / lift / collapse on the same
+    // frame, instead of each running their own local state machine.
+    inline static const std::string MECHANIC_DESTROYED = "MECHANIC_DESTROYED";
+
     static Anchor* Instance;
     std::map<uint32_t, AnchorClient> clients;
     // Server-authoritative per-scene authority. Populated/updated by
@@ -453,6 +463,7 @@ class Anchor : public Network {
 
     // Mechanic sync (Bg_*/Obj_* moving mechanics)
     void MechanicSync_TickAuthorityBroadcast();
+    void SendPacket_MechanicDestroyed(s16 sceneNum, s16 actorId, f32 homeX, f32 homeY, f32 homeZ);
 
   private:
     uint32_t enemyNetIdCounter = 0;

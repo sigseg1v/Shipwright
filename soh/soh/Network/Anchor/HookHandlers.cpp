@@ -920,6 +920,35 @@ void Anchor::RegisterHooks() {
         }
     });
 
+    // Obj_Lift (Deku Tree / Dodongo's Cavern collapsing platform) runs a
+    // local Wait -> Shake -> Fall state machine driven by a player
+    // standing on top. Without sync, each client independently watches
+    // its own player+DummyPlayer and steps through that machine, so the
+    // peer's lift either lags (Wait while the authority's already Fall)
+    // and snaps back to home.pos via ObjLift_SetupFall, or falls a
+    // second time after the authority's lift already broadcast its
+    // destruction. Suppress non-authority Update entirely; pos/rot is
+    // streamed at 15Hz from MECHANIC_STATE and destruction is one-shot
+    // via MECHANIC_DESTROYED below.
+    COND_ID_HOOK(ShouldActorUpdate, ACTOR_OBJ_LIFT, isConnected, [&](void* refActor, bool* should) {
+        if (!IsAuthorityForCurrentScene()) {
+            *should = false;
+        }
+    });
+
+    // Mirror the authority's Actor_Kill onto peers. Gated on
+    // IsAuthorityForCurrentScene so the peer's own Actor_Kill (driven
+    // by the incoming MECHANIC_DESTROYED in HandlePacket_MechanicDestroyed)
+    // doesn't echo the packet back and forth.
+    COND_ID_HOOK(OnActorKill, ACTOR_OBJ_LIFT, isConnected, [&](void* refActor) {
+        Actor* actor = static_cast<Actor*>(refActor);
+        if (!IsAuthorityForCurrentScene()) {
+            return;
+        }
+        SendPacket_MechanicDestroyed((s16)gPlayState->sceneNum, actor->id, actor->home.pos.x, actor->home.pos.y,
+                                     actor->home.pos.z);
+    });
+
     COND_VB_SHOULD(VB_HAMMER_TOTEM_BREAK, isConnected, {
         BgHidanDalm* actor = va_arg(args, BgHidanDalm*);
 
