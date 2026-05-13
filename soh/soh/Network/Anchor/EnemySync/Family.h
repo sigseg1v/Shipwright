@@ -32,6 +32,18 @@
 // vanilla AI routes the hit through the stagger / death paths. may be
 // null for families whose AI doesn't gate on AC_HIT (boss scripts that
 // read colChkInfo.damage directly).
+//
+// Optional: getAttackerActorId is the peer-side companion to setACHits.
+// some overlays read `collider.base.ac->id` inside their ColliderCheck
+// (EnHintnuts is the puzzle-scrub example: the reflected-nutsball path
+// vs the burrow path branches on `ac->id == ACTOR_EN_NUTSBALL`). The
+// engine's CollisionCheck_AC fills `base.ac` on a real collision pass
+// but our synthesized AC_HIT (via SetCyl/JntSphAcHit) leaves it stale.
+// If this hook is provided, the peer reads the attacker id off the
+// relevant collider and we ship it in the ENEMY_DAMAGE packet so the
+// authority can fabricate a dummy Actor with that id and point
+// `base.ac` at it before the actor's next Update. May be null for
+// families whose damage handler never dereferences `base.ac`.
 
 struct EnemyFamily {
     s16 actorId;
@@ -40,6 +52,7 @@ struct EnemyFamily {
     void (*serializeAI)(const Actor* actor, nlohmann::json& payload);
     void (*applyAI)(Actor* actor, const nlohmann::json& payload);
     void (*setACHits)(Actor* actor);
+    u16 (*getAttackerActorId)(Actor* actor);
 };
 
 #endif // NETWORK_ANCHOR_ENEMYSYNC_FAMILY_H

@@ -71,6 +71,28 @@ inline ColliderInfo& AcHitDummy() {
     return dummy;
 }
 
+// Static dummy Actor pointed to by `base.ac` on synthesized AC hits.
+// CollisionCheck_AC fills `base.ac` with the attacker actor pointer on a
+// real local collision; overlays like EnHintnuts dereference
+// `base.ac->id` to decide their damage response (puzzle-scrub takes the
+// reflected-nut path if `ac->id == ACTOR_EN_NUTSBALL`, the burrow path
+// otherwise). After Set{Cyl,JntSph}AcHit, `base.ac` would otherwise be
+// stale (NULL on first hit, or the previous attacker forever after); we
+// always overwrite it to point here so the overlay reads a consistent
+// `id` field that the ENEMY_DAMAGE packet stamped in.
+inline Actor& AcHitDummyAttacker() {
+    static Actor dummy = {};
+    return dummy;
+}
+
+// Side-channel set by HandlePacket_EnemyDamage before calling
+// EnemyFamily::setACHits, consumed by Set{Cyl,JntSph}AcHit to stamp the
+// dummy attacker. Reset to 0 right after setACHits returns.
+inline s16& PendingAttackerActorId() {
+    static s16 attackerId = 0;
+    return attackerId;
+}
+
 // Set AC_HIT on a cylinder collider and point its acHitInfo at the
 // dummy. Use this from EnemyFamily::setACHits instead of poking
 // `c->base.acFlags |= AC_HIT` directly when the overlay reads
@@ -78,6 +100,9 @@ inline ColliderInfo& AcHitDummy() {
 inline void SetCylAcHit(ColliderCylinder* c) {
     c->base.acFlags |= AC_HIT;
     c->info.acHitInfo = &AcHitDummy();
+    Actor& a = AcHitDummyAttacker();
+    a.id = PendingAttackerActorId();
+    c->base.ac = &a;
 }
 
 // JntSph version: also points every element's per-info acHitInfo at the
@@ -89,6 +114,9 @@ inline void SetJntSphAcHit(ColliderJntSph* c) {
     for (int i = 0; i < c->count; i++) {
         c->elements[i].info.acHitInfo = &AcHitDummy();
     }
+    Actor& a = AcHitDummyAttacker();
+    a.id = PendingAttackerActorId();
+    c->base.ac = &a;
 }
 
 }  // namespace EnemySyncHelpers

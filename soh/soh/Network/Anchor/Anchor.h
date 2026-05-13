@@ -457,7 +457,8 @@ class Anchor : public Network {
     void EnemySync_OnEnemyDefeat(Actor* actor);
     void EnemySync_OnActorDestroy(Actor* actor);
     void SendPacket_EnemySpawn(Actor* actor, uint32_t enemyNetId);
-    void SendPacket_EnemyDamage(uint32_t enemyNetId, uint32_t targetClientId, u8 damage, u8 damageEffect);
+    void SendPacket_EnemyDamage(uint32_t enemyNetId, uint32_t targetClientId, u8 damage, u8 damageEffect,
+                                u16 attackerActorId = 0);
     void SendPacket_EnemyDeath(uint32_t enemyNetId);
     void SendPacket_EnemyFullSnapshot(uint32_t targetClientId);
 

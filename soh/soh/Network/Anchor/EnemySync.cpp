@@ -250,9 +250,22 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
         return;
     }
 
-    SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit forwarding actorId=0x{:x} netId={} damage={} -> authority={}",
-                actor->id, state->enemyNetId, damage, authority);
-    SendPacket_EnemyDamage(state->enemyNetId, authority, damage, damageEffect);
+    // Read the attacker actor id off the relevant collider(s) before we
+    // clear the hit locally. Overlays that branch on `ac->id` in their
+    // ColliderCheck (EnHintnuts: nutsball -> BeginRun) need this to flow
+    // through to the authority -- the synthesized AC_HIT on the authority
+    // side has no real attacker pointer, so we stamp it into a dummy actor
+    // there. Optional: families whose damage handler ignores `base.ac` can
+    // leave this hook null.
+    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
+    u16 attackerActorId = 0;
+    if (family != nullptr && family->getAttackerActorId != nullptr) {
+        attackerActorId = family->getAttackerActorId(actor);
+    }
+
+    SPDLOG_INFO("[Anchor:diag] HandleNonAuthorityHit forwarding actorId=0x{:x} netId={} damage={} attacker=0x{:x} -> authority={}",
+                actor->id, state->enemyNetId, damage, attackerActorId, authority);
+    SendPacket_EnemyDamage(state->enemyNetId, authority, damage, damageEffect, attackerActorId);
 
     // Clear the hit locally. Vanilla update is suppressed, so the actor's own
     // AC-flag reset code never runs; without this, the same hit would
@@ -260,7 +273,6 @@ void Anchor::EnemySync_HandleNonAuthorityHit(Actor* actor) {
     actor->colChkInfo.damage = 0;
     actor->colChkInfo.damageEffect = 0;
 
-    const EnemyFamily* family = EnemyFamilyRegistry::Find(actor->id);
     if (family != nullptr && family->clearACHits != nullptr) {
         family->clearACHits(actor);
     }

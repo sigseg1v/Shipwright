@@ -135,6 +135,22 @@ void SetACHits(Actor* actor) {
     EnemySyncHelpers::SetCylAcHit(&a->collider);
 }
 
+// EnHintnuts_ColliderCheck branches on `collider.base.ac->id`: the
+// reflected-nutsball case takes the BeginRun / BeginFreeze path (the
+// scrub pops up and runs), anything else takes the burrow path. Forward
+// the attacker id so the authority's synthesized AC_HIT preserves that
+// distinction. Returns 0 if the engine never landed a real local hit
+// this frame (base.ac unset) -- HandleNonAuthorityHit only forwards on
+// damage > 0 anyway, and a nonzero damage implies CollisionCheck_AC
+// just populated base.ac.
+u16 GetAttackerActorId(Actor* actor) {
+    auto* a = reinterpret_cast<EnHintnuts*>(actor);
+    if (a->collider.base.ac == nullptr) {
+        return 0;
+    }
+    return (u16)a->collider.base.ac->id;
+}
+
 void SerializeAI(const Actor* actor, nlohmann::json& payload) {
     const auto* a = reinterpret_cast<const EnHintnuts*>(actor);
     payload["hnAction"] = ActionFuncToId(a->actionFunc);
@@ -170,4 +186,4 @@ void ApplyAI(Actor* actor, const nlohmann::json& payload) {
 
 }  // namespace
 
-ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_HINTNUTS, &RegisterAC, &ClearACHits, &SerializeAI, &ApplyAI, &SetACHits }));
+ANCHOR_REGISTER_ENEMY_FAMILY((EnemyFamily{ ACTOR_EN_HINTNUTS, &RegisterAC, &ClearACHits, &SerializeAI, &ApplyAI, &SetACHits, &GetAttackerActorId }));
